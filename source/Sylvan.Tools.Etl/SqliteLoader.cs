@@ -66,10 +66,18 @@ namespace Sylvan.Data.Etl
 				conn.Open();
 
 				{
-					var tbl = BuildTable(table, schema);
-					var cmd = conn.CreateCommand();
-					cmd.CommandText = tbl;
-					cmd.ExecuteNonQuery();
+					try
+					{
+						var cmd = conn.CreateCommand();
+						var tbl = BuildTable(table, schema);
+
+						cmd.CommandText = tbl;
+						cmd.ExecuteNonQuery();
+					}
+					catch (Exception e)
+					{
+						throw new InvalidOperationException($"Failed to create table {table}. Verify that it doesn't already exist.", e);
+					}
 				}
 
 				ReadOnlyCollection<DbColumn> ss;
