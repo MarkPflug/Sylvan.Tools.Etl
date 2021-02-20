@@ -8,7 +8,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>setl</ToolCommandName>
 
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>0.1.1</VersionPrefix>
     <Title>Sylvan ETL tool</Title>
     <Description>A .NET global tool for importing CSV data.</Description>
     <PackageTags>ETL;tool</PackageTags>

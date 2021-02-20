@@ -19,7 +19,7 @@ namespace Sylvan.Data.Etl
 	class ImportSettings : CommandSettings
 	{
 		[CommandArgument(0, "[Provider]")]
-		public string Provider { get; set; }
+		public Provider Provider { get; set; }
 
 		[CommandArgument(1, "[Database]")]
 		public string Database { get; set; }
@@ -36,21 +36,33 @@ namespace Sylvan.Data.Etl
 
 	class ImportCommand : Command<ImportSettings>
 	{
-		DataLoader GetLoader(string provider)
+		DataLoader GetLoader(Provider provider)
 		{
-			if (!Enum.TryParse<Provider>(provider, out var p))
-			{
-				throw new ArgumentException($"Unknown provider {provider}", nameof(provider));
-			}
-
-			switch (p)
+			switch (provider)
 			{
 				case Provider.SqlServer:
 					return new SqlServerLoader();
 				case Provider.Sqlite:
 					return new SqliteLoader();
 			}
-			throw new NotSupportedException();
+			throw new NotSupportedException("Unknown provider '" + provider + "'");
+		}
+
+		public override ValidationResult Validate(CommandContext context, ImportSettings settings)
+		{
+			if (settings.Provider == 0)
+			{
+				return ValidationResult.Error("Provider required.");
+			}
+			if (settings.Database == null)
+			{
+				return ValidationResult.Error("Database required.");
+			}
+			if (settings.File == null)
+			{
+				return ValidationResult.Error("File required.");
+			}
+			return base.Validate(context, settings);
 		}
 
 		IDbColumnSchemaGenerator GetSchema(string filename)
@@ -63,7 +75,7 @@ namespace Sylvan.Data.Etl
 			else
 			{
 				using var csv = CsvDataReader.Create(filename);
-				var a = new SchemaAnalyzer(new SchemaAnalyzerOptions { AnalyzeRowCount = 1000000 });
+				var a = new SchemaAnalyzer(new SchemaAnalyzerOptions { AnalyzeRowCount = 100000 });
 				var re = a.Analyze(csv);
 				var schema = re.GetSchema();
 				csv.Dispose();
@@ -79,56 +91,48 @@ namespace Sylvan.Data.Etl
 			double last = 0.0;
 			double prog = 0.0;
 
-			ProgressTask task = null;
+			ProgressTask progress = null;
 			var mre = new ManualResetEvent(false);
-			bool done = false;
-			Exception ex = null;
+
 			void UpdateProgress(double p)
 			{
 				prog = p * 100d;
 				mre.Set();
 			}
 
-			Task.Run(() =>
+			var task = Task.Run(() =>
 			{
 				CsvDataReader csv = null;
-				try
+
+				var database = settings.Database;
+				var filename = settings.File;
+				var loader = GetLoader(settings.Provider);
+
+				var tableName = settings.Table ?? Path.GetFileNameWithoutExtension(filename);
+
+				Stream s = File.OpenRead(settings.File);
+				s = s.WithReadProgress(UpdateProgress, 0.001);
+				var tr = new StreamReader(s);
+				for (int i = 0; i < settings.Skip; i++)
 				{
-					var database = settings.Database;
-					var filename = settings.File;
-					var loader = GetLoader(settings.Provider);
+					tr.ReadLine();
+				}
 
-					var tableName = settings.Table ?? Path.GetFileNameWithoutExtension(filename);
+				var schema = GetSchema(filename);
 
-					Stream s = File.OpenRead(settings.File);
-					s = s.WithReadProgress(UpdateProgress, 0.001);
-					var tr = new StreamReader(s);
-					for (int i = 0; i < settings.Skip; i++)
+				var opts =
+					new CsvDataReaderOptions
 					{
-						tr.ReadLine();
-					}
+						BufferSize = 0x100000,
+						Schema = new CsvSchema(schema.GetColumnSchema()),
+					};
 
-					var schema = GetSchema(filename);
-					var opts =
-						new CsvDataReaderOptions
-						{
-							BufferSize = 0x100000,
-							Schema = new CsvSchema(schema.GetColumnSchema()),
-						};
-					csv = CsvDataReader.Create(tr, opts);
-					loader.Load(schema, csv, tableName, database);
-				}
-				catch (Exception exx)
-				{
-					var rn = csv?.RowNumber ?? -1;
-					Console.WriteLine("Error around row: " + rn);
-					ex = exx;
-				}
+				csv = CsvDataReader.Create(tr, opts);
+				loader.Load(schema, csv, tableName, database);
 
-				done = true;
 				mre.Set();
-				return 1;
 			});
+			task.ContinueWith(t => mre.Set());
 
 			AnsiConsole.Progress()
 				.Columns(new ProgressColumn[] {
@@ -141,18 +145,23 @@ namespace Sylvan.Data.Etl
 				)
 				.Start(ctx =>
 				{
-					task = ctx.AddTask("Import");
-					while (!done)
+					progress = ctx.AddTask("Import");
+					while (!task.IsCompleted)
 					{
 						mre.WaitOne();
-						if (ex != null)
-						{
-							throw ex;
-						}
 						var inc = prog - last;
 						last = prog;
-						task.Increment(inc);
+						progress.Increment(inc);
 						mre.Reset();
+					}
+					if (task.IsFaulted)
+					{
+						throw task.Exception;
+					}
+					else
+					{
+						// make sure it arrives at 100%
+						progress.Increment(100d - last);
 					}
 				});
 

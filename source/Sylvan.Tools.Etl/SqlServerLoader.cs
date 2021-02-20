@@ -100,8 +100,14 @@ namespace Sylvan.Data.Etl
 				var tbl = BuildTable(table, schema);
 				var cmd = conn.CreateCommand();
 				cmd.CommandText = tbl;
-				cmd.ExecuteNonQuery();
-
+				try
+				{
+					cmd.ExecuteNonQuery();
+				}
+				catch (Exception e)
+				{
+					throw new InvalidOperationException($"Failed to create table {table}.", e);
+				}
 				using var tx = conn.BeginTransaction();
 				var bc = new SqlBulkCopy(conn, 0, tx);
 				bc.BulkCopyTimeout = 0;
