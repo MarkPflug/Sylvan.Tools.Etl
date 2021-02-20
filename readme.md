@@ -16,11 +16,15 @@ Analyzes a CSV file and creates a .schema file describing the data.
 
 `setl analyze data.csv`
 
+Creates a file named data.csv.schema.
+
 ### Import
 
 Imports a CSV file into a database. Currently supports either SqlServer or Sqlite.
 
 `setl import SqlServer MyDb data.csv ImportedData`
+
+Will analyze the CSV contents to determine schema, or use a .schema file if one exists.
 
 ### Select
 
