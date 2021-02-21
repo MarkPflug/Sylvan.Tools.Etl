@@ -1,11 +1,7 @@
-﻿using Spectre.Console;
-using Spectre.Console.Cli;
+﻿using Spectre.Console.Cli;
 using Sylvan.Data.Csv;
-using Sylvan.IO;
 using System;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Sylvan.Data.Etl
 {
@@ -31,82 +27,35 @@ namespace Sylvan.Data.Etl
 			SelectSettings settings
 		)
 		{
-			double last = 0.0;
-			double prog = 0.0;
+			var filename = settings.File;
 
-			ProgressTask task = null;
-			var mre = new ManualResetEvent(false);
-			bool done = false;
-			Exception ex = null;
-			void UpdateProgress(double p)
+			Stream iStream = filename == "."
+				? Console.OpenStandardInput()
+				: File.OpenRead(settings.File);
+
+			var tr = new StreamReader(iStream);
+			for (int i = 0; i < settings.Skip; i++)
 			{
-				prog = p * 100d;
-				mre.Set();
+				tr.ReadLine();
 			}
-
-			Task.Run(() =>
-			{
-				CsvDataReader csv = null;
-				try
+			var opts =
+				new CsvDataReaderOptions
 				{
-					Stream s = File.OpenRead(settings.File);
-					s = s.WithReadProgress(UpdateProgress, 0.001);
-					var tr = new StreamReader(s);
-					for (int i = 0; i < settings.Skip; i++)
-					{
-						tr.ReadLine();
-					}
-					var opts =
-						new CsvDataReaderOptions
-						{
-							BufferSize = 0x100000,
-						};
-					csv = CsvDataReader.Create(tr, opts);
-					var data = csv.Select(settings.Columns);
+					BufferSize = 0x100000,
+				};
+			var csv = CsvDataReader.Create(tr, opts);
+			var data = csv.Select(settings.Columns);
 
-					var outWriter = new StreamWriter(settings.Output);
-					var ww = CsvDataWriter.Create(outWriter);
-					ww.Write(data);
-				}
-				catch (Exception exx)
-				{
-					var rn = csv?.RowNumber ?? -1;
-					Console.WriteLine("Error around row: " + rn);
-					ex = exx;
-				}
+			var oStream =
+				settings.Output == "."
+				? Console.OpenStandardOutput()
+				: File.Create(settings.Output);
 
-				done = true;
-				mre.Set();
-				return 1;
-			});
+			var tw = new StreamWriter(oStream);
+			var ww = CsvDataWriter.Create(tw);
+			ww.Write(data);
 
-			AnsiConsole.Progress()
-				.Columns(new ProgressColumn[] {
-					new TaskDescriptionColumn(),    // Task description
-					new ProgressBarColumn(),        // Progress bar
-					new PercentageColumn(),         // Percentage
-					new RemainingTimeColumn(),      // Remaining time
-					new SpinnerColumn(),
-					}
-				)
-				.Start(ctx =>
-				{
-					task = ctx.AddTask("Select");
-					while (!done)
-					{
-						mre.WaitOne();
-						if (ex != null)
-						{
-							throw ex;
-						}
-						var inc = prog - last;
-						last = prog;
-						task.Increment(inc);
-						mre.Reset();
-					}
-				});
-
-			return 1;
+			return 0;
 		}
 	}
 }

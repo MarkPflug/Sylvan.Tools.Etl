@@ -3,15 +3,14 @@ using System.Collections.ObjectModel;
 using System.Data.Common;
 using System.IO;
 using System.Data.SQLite;
+using System.Collections.Generic;
 
 namespace Sylvan.Data.Etl
 {
 	class SqliteLoader : DataLoader
 	{
-		string BuildTable(string name, IDbColumnSchemaGenerator schema)
+		string BuildTable(string name, IEnumerable<DbColumn> cols)
 		{
-			var cols = schema.GetColumnSchema();
-
 			var w = new StringWriter();
 
 			w.WriteLine("create table " + name + " (");
@@ -59,7 +58,7 @@ namespace Sylvan.Data.Etl
 			return w.ToString();
 		}
 
-		public override void Load(IDbColumnSchemaGenerator schema, DbDataReader data, string table, string database)
+		public override void Load(DbDataReader data, string table, string database)
 		{
 			using (var conn = new SQLiteConnection("Data Source=" + database))
 			{
@@ -69,7 +68,7 @@ namespace Sylvan.Data.Etl
 					try
 					{
 						var cmd = conn.CreateCommand();
-						var tbl = BuildTable(table, schema);
+						var tbl = BuildTable(table, data.GetColumnSchema());
 
 						cmd.CommandText = tbl;
 						cmd.ExecuteNonQuery();
