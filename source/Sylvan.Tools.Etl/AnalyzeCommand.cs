@@ -13,7 +13,7 @@ namespace Sylvan.Data.Etl
 		[CommandArgument(1, "[Schema]")]
 		public string Schema { get; set; }
 
-		[CommandArgument(2, "[Lines]")]
+		[CommandOption("-l|--lines <Count>")]
 		public int Lines { get; set; }
 
 		[CommandOption("-s|--skip <Skip>")]
@@ -30,7 +30,7 @@ namespace Sylvan.Data.Etl
 		public override int Execute(CommandContext context, AnalyzeSettings settings)
 		{
 			var filename = settings.File;
-			var output = settings.Schema == "*" ? filename + ".schema" : settings.Schema;
+			var output = settings.Schema ?? filename + ".schema";
 
 			Stream oStream =
 				output == "."
