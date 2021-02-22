@@ -3,7 +3,6 @@ using Spectre.Console.Cli;
 using Sylvan.Data.Csv;
 using Sylvan.IO;
 using System;
-using System.Data.Common;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +25,9 @@ namespace Sylvan.Data.Etl
 
 		[CommandArgument(2, "[File]")]
 		public string File { get; set; }
+
+		[CommandOption("--schema <Schema>")]
+		public string Schema { get; set; }
 
 		[CommandOption("-t|--table <Table>")]
 		public string Table { get; set; }
@@ -64,25 +66,7 @@ namespace Sylvan.Data.Etl
 			}
 			return base.Validate(context, settings);
 		}
-
-		IDbColumnSchemaGenerator GetSchema(string filename)
-		{
-			var schemaFile = filename + ".schema";
-			if (File.Exists(schemaFile))
-			{
-				return Schema.Parse(File.ReadAllText(schemaFile));
-			}
-			else
-			{
-				using var csv = CsvDataReader.Create(filename);
-				var a = new SchemaAnalyzer(new SchemaAnalyzerOptions { AnalyzeRowCount = 100000 });
-				var re = a.Analyze(csv);
-				var schema = re.GetSchema();
-				csv.Dispose();
-				return schema;
-			}
-		}
-
+			
 		public override int Execute(
 			CommandContext context,
 			ImportSettings settings
@@ -118,20 +102,40 @@ namespace Sylvan.Data.Etl
 					tr.ReadLine();
 				}
 
-				var schema = GetSchema(filename);
+				string schemaSpec = null;
+
+				if (settings.Schema != null)
+				{
+					var schemaFile = settings.Schema;
+					schemaSpec = File.ReadAllText(schemaFile);					
+				}  
+				else
+				{
+					var schemaFile = filename + ".schema";
+					if (File.Exists(schemaFile))
+					{
+						schemaSpec = File.ReadAllText(schemaFile);
+					}				
+				}
+
+				var explicitSchema = schemaSpec == null ? null : Schema.Parse(schemaSpec);
+
+				var schema = explicitSchema == null ? CsvSchema.Nullable : new CsvSchema(explicitSchema);
 
 				var opts =
 					new CsvDataReaderOptions
 					{
 						BufferSize = 0x100000,
-						Schema = new CsvSchema(schema.GetColumnSchema()),
+						Schema = schema,
 					};
 
 				csv = CsvDataReader.Create(tr, opts);
-				loader.Load(schema, csv, tableName, database);
+
+				loader.Load(csv, tableName, database);
 
 				mre.Set();
 			});
+			// ensures that the progress loop finishes.
 			task.ContinueWith(t => mre.Set());
 
 			AnsiConsole.Progress()
@@ -161,11 +165,14 @@ namespace Sylvan.Data.Etl
 					else
 					{
 						// make sure it arrives at 100%
-						progress.Increment(100d - last);
+						if (last < 100d)
+						{
+							progress.Increment(100d - last);
+						}
 					}
 				});
 
-			return 1;
+			return 0;
 		}
 	}
 }

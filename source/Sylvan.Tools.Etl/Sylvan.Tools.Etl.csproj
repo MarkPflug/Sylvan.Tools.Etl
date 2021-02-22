@@ -9,7 +9,7 @@
     <ToolCommandName>setl</ToolCommandName>
 
     <VersionPrefix>0.1.1</VersionPrefix>
-    <Title>Sylvan ETL tool</Title>
+    <Title>Sylvan ETL tools</Title>
     <Description>A .NET global tool for importing CSV data.</Description>
     <PackageTags>ETL;tool</PackageTags>
   </PropertyGroup>
@@ -20,8 +20,8 @@
     <PackageReference Include="Spectre.Console" Version="0.37.0" />
     <!--<PackageReference Include="sqlite" Version="3.13.0" />-->
     <PackageReference Include="Sylvan.Common" Version="0.3.0-B0001" />
-    <PackageReference Include="Sylvan.Data" Version="0.1.0-B0019" />
-    <PackageReference Include="Sylvan.Data.Csv" Version="0.10.0-B0002" />
+    <PackageReference Include="Sylvan.Data" Version="0.1.0-B0021" />
+    <PackageReference Include="Sylvan.Data.Csv" Version="0.10.0-B0003" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.2" />
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.7" />
   </ItemGroup>

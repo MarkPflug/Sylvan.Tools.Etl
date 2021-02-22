@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
 
@@ -7,9 +8,8 @@ namespace Sylvan.Data.Etl
 {
 	class SqlServerLoader : DataLoader
 	{
-		string BuildTable(string name, IDbColumnSchemaGenerator schema)
+		string BuildTable(string name, IEnumerable<DbColumn> cols)
 		{
-			var cols = schema.GetColumnSchema();
 
 			var w = new StringWriter();
 
@@ -80,15 +80,16 @@ namespace Sylvan.Data.Etl
 			return w.ToString();
 		}
 
-		public override void Load(IDbColumnSchemaGenerator schema, DbDataReader data, string table, string database)
+		public override void Load(DbDataReader data, string table, string database)
 		{
 			string connStr;
-			if (database.Contains("="))
+			if (database.Contains("=")) // full connection string
 			{
 				connStr = database;
 			}
 			else
 			{
+				// otherwise assume just a database name on local server
 				var csb = new SqlConnectionStringBuilder() { DataSource = ".", InitialCatalog = database, IntegratedSecurity = true };
 				connStr = csb.ConnectionString;
 			}
@@ -97,7 +98,7 @@ namespace Sylvan.Data.Etl
 			{
 				conn.Open();
 
-				var tbl = BuildTable(table, schema);
+				var tbl = BuildTable(table, data.GetColumnSchema());
 				var cmd = conn.CreateCommand();
 				cmd.CommandText = tbl;
 				try
@@ -108,6 +109,7 @@ namespace Sylvan.Data.Etl
 				{
 					throw new InvalidOperationException($"Failed to create table {table}.", e);
 				}
+
 				using var tx = conn.BeginTransaction();
 				var bc = new SqlBulkCopy(conn, 0, tx);
 				bc.BulkCopyTimeout = 0;

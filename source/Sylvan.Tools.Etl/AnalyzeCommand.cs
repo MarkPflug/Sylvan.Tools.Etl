@@ -10,15 +10,18 @@ namespace Sylvan.Data.Etl
 		[CommandArgument(0, "[File]")]
 		public string File { get; set; }
 
-		[CommandArgument(1, "[Lines]")]
+		[CommandArgument(1, "[Schema]")]
+		public string Schema { get; set; }
+
+		[CommandOption("-l|--lines <Count>")]
 		public int Lines { get; set; }
 
-		[CommandOption("-s|--skip <SKIP>")]
+		[CommandOption("-s|--skip <Skip>")]
 		public int Skip { get; set; }
 
 		public AnalyzeSettings()
 		{
-			this.Lines = 100000;
+			this.Lines = 10000;
 		}
 	}
 
@@ -27,7 +30,12 @@ namespace Sylvan.Data.Etl
 		public override int Execute(CommandContext context, AnalyzeSettings settings)
 		{
 			var filename = settings.File;
-			var output = filename + ".schema";
+			var output = settings.Schema ?? filename + ".schema";
+
+			Stream oStream =
+				output == "."
+				? Console.OpenStandardOutput()
+				: File.Create(output);
 
 			var tr = new StreamReader(filename);
 			for (int i = 0; i < settings.Skip; i++)
@@ -38,9 +46,17 @@ namespace Sylvan.Data.Etl
 			var csv = CsvDataReader.Create(tr);
 			var a = new SchemaAnalyzer(new SchemaAnalyzerOptions { AnalyzeRowCount = settings.Lines });
 			var re = a.Analyze(csv);
-			var schema = re.GetSchema();
+			var sb = re.GetSchemaBuilder();
+			
+			foreach(var col in sb)
+			{
+				// TODO: think more about how to handle columns size
+				col.ColumnSize = null;
+			}
+			var schema = sb.Build();
 
-			File.WriteAllText(output, schema.ToString().Replace(",", "," + Environment.NewLine));
+			using var tw = new StreamWriter(oStream);
+			tw.Write(schema.ToString().Replace(",", "," + Environment.NewLine));
 			return 0;
 		}
 	}

@@ -4,6 +4,6 @@ namespace Sylvan.Data.Etl
 {
 	abstract class DataLoader
 	{
-		public abstract void Load(IDbColumnSchemaGenerator schema, DbDataReader data, string table, string database);
+		public abstract void Load(DbDataReader data, string table, string database);
 	}
 }
