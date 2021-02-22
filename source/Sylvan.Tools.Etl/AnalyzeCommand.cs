@@ -30,7 +30,7 @@ namespace Sylvan.Data.Etl
 		public override int Execute(CommandContext context, AnalyzeSettings settings)
 		{
 			var filename = settings.File;
-			var output = settings.Schema ?? filename + ".schema";
+			var output = settings.Schema == "*" ? filename + ".schema" : settings.Schema;
 
 			Stream oStream =
 				output == "."
@@ -46,7 +46,14 @@ namespace Sylvan.Data.Etl
 			var csv = CsvDataReader.Create(tr);
 			var a = new SchemaAnalyzer(new SchemaAnalyzerOptions { AnalyzeRowCount = settings.Lines });
 			var re = a.Analyze(csv);
-			var schema = re.GetSchema();
+			var sb = re.GetSchemaBuilder();
+			
+			foreach(var col in sb)
+			{
+				// TODO: think more about how to handle columns size
+				col.ColumnSize = null;
+			}
+			var schema = sb.Build();
 
 			using var tw = new StreamWriter(oStream);
 			tw.Write(schema.ToString().Replace(",", "," + Environment.NewLine));
