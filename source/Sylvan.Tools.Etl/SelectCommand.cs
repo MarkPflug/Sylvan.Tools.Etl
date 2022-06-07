@@ -1,7 +1,10 @@
 ﻿using Spectre.Console.Cli;
 using Sylvan.Data.Csv;
 using System;
+using System.Data.Common;
 using System.IO;
+using System.IO.Compression;
+using System.Text;
 
 namespace Sylvan.Data.Etl
 {
@@ -28,32 +31,19 @@ namespace Sylvan.Data.Etl
 		)
 		{
 			var filename = settings.File;
+			using var reader = DataReader.OpenReader(filename);
 
-			Stream iStream = filename == "."
-				? Console.OpenStandardInput()
-				: File.OpenRead(settings.File);
-
-			var tr = new StreamReader(iStream);
-			for (int i = 0; i < settings.Skip; i++)
-			{
-				tr.ReadLine();
-			}
-			var opts =
-				new CsvDataReaderOptions
-				{
-					BufferSize = 0x100000,
-				};
-			var csv = CsvDataReader.Create(tr, opts);
-			var data = csv.Select(settings.Columns);
+			var data = reader.Select(settings.Columns);
 
 			var oStream =
 				settings.Output == "."
 				? Console.OpenStandardOutput()
 				: File.Create(settings.Output);
 
-			var tw = new StreamWriter(oStream);
-			var ww = CsvDataWriter.Create(tw);
+			using var tw = new StreamWriter(oStream, Console.OutputEncoding, 0x1000);
+			using var ww = CsvDataWriter.Create(tw);
 			ww.Write(data);
+			oStream.Flush();
 
 			return 0;
 		}

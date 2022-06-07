@@ -1,29 +1,34 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
-    <RootNamespace>Sylvan.Data.Etl</RootNamespace>
-    <RollForward>Major</RollForward>
-    <PackAsTool>true</PackAsTool>
-    <ToolCommandName>setl</ToolCommandName>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net6.0</TargetFramework>
+		<RootNamespace>Sylvan.Data.Etl</RootNamespace>
+		<RollForward>Major</RollForward>
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>setl</ToolCommandName>
 
-    <VersionPrefix>0.1.1</VersionPrefix>
-    <Title>Sylvan ETL tools</Title>
-    <Description>A .NET global tool for importing CSV data.</Description>
-    <PackageTags>ETL;tool</PackageTags>
-  </PropertyGroup>
+		<VersionPrefix>0.1.2</VersionPrefix>
+		<VersionSuffix>B0001</VersionSuffix>
+		<Title>Sylvan ETL tools</Title>
+		<Description>A .NET global tool for importing CSV data.</Description>
+		<PackageTags>ETL;tool</PackageTags>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="2.1.1" />
-    <!--<PackageReference Include="Microsoft.Data.Sqlite" Version="5.0.3" />-->
-    <PackageReference Include="Spectre.Console" Version="0.37.0" />
-    <!--<PackageReference Include="sqlite" Version="3.13.0" />-->
-    <PackageReference Include="Sylvan.Common" Version="0.3.0-B0001" />
-    <PackageReference Include="Sylvan.Data" Version="0.1.0-B0021" />
-    <PackageReference Include="Sylvan.Data.Csv" Version="0.10.0-B0003" />
-    <PackageReference Include="System.Data.SqlClient" Version="4.8.2" />
-    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.7" />
-  </ItemGroup>
-
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Data.SqlClient" Version="4.1.0" />
+		<PackageReference Include="Npgsql" Version="6.0.4" />
+		<PackageReference Include="Spectre.Console" Version="0.44.0" />
+		<PackageReference Include="Sylvan.Common" Version="0.3.0" />
+		<PackageReference Include="Sylvan.Data" Version="0.2.1" />
+		<PackageReference Include="Sylvan.Data.Csv" Version="1.1.15" />
+		<PackageReference Include="Sylvan.Data.Excel" Version="0.1.11-b0006" />
+		<PackageReference Include="Sylvan.Data.XBase" Version="0.1.1" />
+		<PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
+		<PackageReference Include="System.Data.SQLite" Version="1.0.116" />
+		<!--
+    <PackageReference Include="sqlite" Version="3.13.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="5.0.3" />
+    -->
+	</ItemGroup>
 </Project>

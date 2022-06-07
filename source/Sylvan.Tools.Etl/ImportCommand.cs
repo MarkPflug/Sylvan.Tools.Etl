@@ -4,7 +4,6 @@ using Sylvan.Data.Csv;
 using Sylvan.IO;
 using System;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sylvan.Data.Etl
@@ -13,6 +12,7 @@ namespace Sylvan.Data.Etl
 	{
 		SqlServer = 1,
 		Sqlite = 2,
+		Postgres = 3,
 	}
 
 	class ImportSettings : CommandSettings
@@ -34,6 +34,10 @@ namespace Sylvan.Data.Etl
 
 		[CommandOption("-s|--skip <SKIP>")]
 		public int Skip { get; set; }
+
+		[CommandOption("-q|--quote <quote>")]
+		public string Quote { get; set; }
+
 	}
 
 	class ImportCommand : Command<ImportSettings>
@@ -46,6 +50,8 @@ namespace Sylvan.Data.Etl
 					return new SqlServerLoader();
 				case Provider.Sqlite:
 					return new SqliteLoader();
+				case Provider.Postgres:
+					return new PostgresLoader();
 			}
 			throw new NotSupportedException("Unknown provider '" + provider + "'");
 		}
@@ -66,113 +72,86 @@ namespace Sylvan.Data.Etl
 			}
 			return base.Validate(context, settings);
 		}
-			
+
 		public override int Execute(
 			CommandContext context,
 			ImportSettings settings
 		)
 		{
-			double last = 0.0;
-			double prog = 0.0;
-
-			ProgressTask progress = null;
-			var mre = new ManualResetEvent(false);
-
-			void UpdateProgress(double p)
+			Task RunImport(Action<double> progressCallback)
 			{
-				prog = p * 100d;
-				mre.Set();
+				return Task.Run(() =>
+				{
+					var database = settings.Database;
+					var filename = settings.File;
+					var loader = GetLoader(settings.Provider);
+
+					var tableName = settings.Table ?? Path.GetFileNameWithoutExtension(filename);
+
+					var reader = DataReader.OpenReader(filename, prog: progressCallback);
+
+					var conn = loader.GetConnection(database);
+
+					loader.Load(conn, tableName, reader);
+				});
 			}
 
-			var task = Task.Run(() =>
-			{
-				CsvDataReader csv = null;
+			Progress p = AnsiConsole.Progress();
 
-				var database = settings.Database;
-				var filename = settings.File;
-				var loader = GetLoader(settings.Provider);
-
-				var tableName = settings.Table ?? Path.GetFileNameWithoutExtension(filename);
-
-				Stream s = File.OpenRead(settings.File);
-				s = s.WithReadProgress(UpdateProgress, 0.001);
-				var tr = new StreamReader(s);
-				for (int i = 0; i < settings.Skip; i++)
-				{
-					tr.ReadLine();
-				}
-
-				string schemaSpec = null;
-
-				if (settings.Schema != null)
-				{
-					var schemaFile = settings.Schema;
-					schemaSpec = File.ReadAllText(schemaFile);					
-				}  
-				else
-				{
-					var schemaFile = filename + ".schema";
-					if (File.Exists(schemaFile))
-					{
-						schemaSpec = File.ReadAllText(schemaFile);
-					}				
-				}
-
-				var explicitSchema = schemaSpec == null ? null : Schema.Parse(schemaSpec);
-
-				var schema = explicitSchema == null ? CsvSchema.Nullable : new CsvSchema(explicitSchema);
-
-				var opts =
-					new CsvDataReaderOptions
-					{
-						BufferSize = 0x100000,
-						Schema = schema,
-					};
-
-				csv = CsvDataReader.Create(tr, opts);
-
-				loader.Load(csv, tableName, database);
-
-				mre.Set();
-			});
-			// ensures that the progress loop finishes.
-			task.ContinueWith(t => mre.Set());
-
-			AnsiConsole.Progress()
-				.Columns(new ProgressColumn[] {
-					new TaskDescriptionColumn(),    // Task description
-					new ProgressBarColumn(),        // Progress bar
-					new PercentageColumn(),         // Percentage
-					new RemainingTimeColumn(),      // Remaining time
+			p.Columns(
+				new ProgressColumn[] {
+					new TaskDescriptionColumn(),
+					new ProgressBarColumn(),
+					new PercentageColumn(),
+					new HybridTimeColumn(),
 					new SpinnerColumn(),
-					}
-				)
-				.Start(ctx =>
+				}
+			);
+
+			p.Start(ctx =>
 				{
-					progress = ctx.AddTask("Import");
-					while (!task.IsCompleted)
-					{
-						mre.WaitOne();
-						var inc = prog - last;
-						last = prog;
-						progress.Increment(inc);
-						mre.Reset();
-					}
-					if (task.IsFaulted)
-					{
-						throw task.Exception;
-					}
-					else
-					{
-						// make sure it arrives at 100%
-						if (last < 100d)
-						{
-							progress.Increment(100d - last);
-						}
-					}
+					var task = ctx.AddTask("Import", RunImport);
+					task.Wait();
+
 				});
 
 			return 0;
+		}
+	}
+
+	static class SpectreExtensions
+	{
+		public static Task AddTask(this ProgressContext ctx, string description, Func<Action<double>, Task> taskFactory, double maxValue = 1d)
+		{
+			var task = ctx.AddTask(description, new ProgressTaskSettings { MaxValue = maxValue });
+			
+			double last = 0d;
+
+			Action<double> setProgress =
+				progress =>
+				{
+					var delta = progress - last;
+					task.Increment(delta);
+					last = progress;
+				};
+
+			var tt = taskFactory(setProgress)
+				// ensures that the task reaches "completed".
+				.ContinueWith(
+					t =>
+					{
+						if (t.IsCompletedSuccessfully)
+						{
+							task.Increment(maxValue);
+						}
+						else
+						{
+							throw t.Exception;
+						}
+					}
+				);
+
+			return tt;
 		}
 	}
 }

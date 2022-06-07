@@ -26,8 +26,9 @@ namespace Sylvan.Data.Etl
 				{
 					w.WriteLine(",");
 				}
-
+				w.Write('[');
 				w.Write(col.ColumnName);
+				w.Write(']');
 				w.Write(' ');
 				switch (Type.GetTypeCode(col.DataType))
 				{
@@ -80,7 +81,7 @@ namespace Sylvan.Data.Etl
 			return w.ToString();
 		}
 
-		public override void Load(DbDataReader data, string table, string database)
+		public override DbConnection GetConnection(string database)
 		{
 			string connStr;
 			if (database.Contains("=")) // full connection string
@@ -90,35 +91,43 @@ namespace Sylvan.Data.Etl
 			else
 			{
 				// otherwise assume just a database name on local server
-				var csb = new SqlConnectionStringBuilder() { DataSource = ".", InitialCatalog = database, IntegratedSecurity = true };
+				var csb = new SqlConnectionStringBuilder() { 
+					DataSource = ".", 
+					InitialCatalog = database, 
+					IntegratedSecurity = true,
+					TrustServerCertificate = true,
+				};
 				connStr = csb.ConnectionString;
 			}
 
-			using (var conn = new SqlConnection(connStr))
+			var conn = new SqlConnection(connStr);
+			conn.Open();
+			return conn;
+		}
+
+		public override void Load(DbConnection conn, string table, DbDataReader data)
+		{
+			var sqlConn = (SqlConnection)conn;
+			//var tbl = BuildTable(table, data.GetColumnSchema());
+			//var cmd = sqlConn.CreateCommand();
+			//cmd.CommandText = tbl;
+			try
 			{
-				conn.Open();
-
-				var tbl = BuildTable(table, data.GetColumnSchema());
-				var cmd = conn.CreateCommand();
-				cmd.CommandText = tbl;
-				try
-				{
-					cmd.ExecuteNonQuery();
-				}
-				catch (Exception e)
-				{
-					throw new InvalidOperationException($"Failed to create table {table}.", e);
-				}
-
-				using var tx = conn.BeginTransaction();
-				var bc = new SqlBulkCopy(conn, 0, tx);
-				bc.BulkCopyTimeout = 0;
-				bc.EnableStreaming = true;
-				bc.DestinationTableName = table;
-				bc.BatchSize = 10000;
-				bc.WriteToServer(data);
-				tx.Commit();
+			//	cmd.ExecuteNonQuery();
 			}
+			catch (Exception e)
+			{
+				throw new InvalidOperationException($"Failed to create table {table}.", e);
+			}
+
+			using var tx = sqlConn.BeginTransaction();
+			var bc = new SqlBulkCopy(sqlConn, 0, tx);
+			bc.BulkCopyTimeout = 0;
+			bc.EnableStreaming = true;
+			bc.DestinationTableName = table;
+			bc.BatchSize = 10000;
+			bc.WriteToServer(data);
+			tx.Commit();
 		}
 	}
 }

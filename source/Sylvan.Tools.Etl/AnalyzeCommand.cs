@@ -37,15 +37,18 @@ namespace Sylvan.Data.Etl
 				? Console.OpenStandardOutput()
 				: File.Create(output);
 
-			var tr = new StreamReader(filename);
+			
+			var reader = DataReader.OpenReader(filename, false);
 			for (int i = 0; i < settings.Skip; i++)
 			{
-				tr.ReadLine();
+				if(!reader.Read())
+				{
+					throw new Exception();
+				}
 			}
 
-			var csv = CsvDataReader.Create(tr);
 			var a = new SchemaAnalyzer(new SchemaAnalyzerOptions { AnalyzeRowCount = settings.Lines });
-			var re = a.Analyze(csv);
+			var re = a.Analyze(reader);
 			var sb = re.GetSchemaBuilder();
 			
 			foreach(var col in sb)
