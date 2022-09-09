@@ -17,12 +17,12 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Data.SqlClient" Version="4.1.0" />
-		<PackageReference Include="Npgsql" Version="6.0.4" />
+		<PackageReference Include="Npgsql" Version="6.0.5" />
 		<PackageReference Include="Spectre.Console" Version="0.44.0" />
 		<PackageReference Include="Sylvan.Common" Version="0.3.0" />
-		<PackageReference Include="Sylvan.Data" Version="0.2.1" />
-		<PackageReference Include="Sylvan.Data.Csv" Version="1.1.15" />
-		<PackageReference Include="Sylvan.Data.Excel" Version="0.1.11-b0006" />
+		<PackageReference Include="Sylvan.Data" Version="0.2.2" />
+		<PackageReference Include="Sylvan.Data.Csv" Version="1.1.16" />
+		<PackageReference Include="Sylvan.Data.Excel" Version="0.2.1" />
 		<PackageReference Include="Sylvan.Data.XBase" Version="0.1.1" />
 		<PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
 		<PackageReference Include="System.Data.SQLite" Version="1.0.116" />
@@ -30,5 +30,9 @@
     <PackageReference Include="sqlite" Version="3.13.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="5.0.3" />
     -->
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Sylvan.Data.Etl\Sylvan.Data.Etl.csproj" />
 	</ItemGroup>
 </Project>

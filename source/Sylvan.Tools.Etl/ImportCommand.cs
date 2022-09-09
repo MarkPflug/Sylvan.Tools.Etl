@@ -85,12 +85,10 @@ namespace Sylvan.Data.Etl
 					var database = settings.Database;
 					var filename = settings.File;
 					var loader = GetLoader(settings.Provider);
-
 					var tableName = settings.Table ?? Path.GetFileNameWithoutExtension(filename);
-
-					var reader = DataReader.OpenReader(filename, prog: progressCallback);
-
 					var conn = loader.GetConnection(database);
+					var schema = loader.GetSchema(conn, tableName);
+					var reader = DataReader.OpenReader(filename, prog: progressCallback, sg: schema);
 
 					loader.Load(conn, tableName, reader);
 				});
