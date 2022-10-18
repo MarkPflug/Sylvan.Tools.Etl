@@ -96,26 +96,26 @@ public class MigrateProcess
 
 			Console.WriteLine($" {sw.Elapsed} {count}");
 		}
-		//Console.WriteLine("Creating primary keys");
-		//{
-		//	var w = new StringWriter();
-		//	GeneratePKs(conn, w);
-		//	var pks = w.ToString();
-		//	var cmd = dst.CreateCommand();
-		//	cmd.CommandText = pks;
-		//	cmd.ExecuteNonQuery();
-		//}
+		Console.WriteLine("Creating primary keys");
+		{
+			var w = new StringWriter();
+			GeneratePKs(conn, w);
+			var pks = w.ToString();
+			var cmd = dst.CreateCommand();
+			cmd.CommandText = pks;
+			cmd.ExecuteNonQuery();
+		}
 
-		//Console.WriteLine("Creating foreign keys");
-		//{
-		//	var w = new StringWriter();
-		//	GenerateFKs(conn, w);
-		//	var fks = w.ToString();
-		//	var cmd = dst.CreateCommand();
-		//	cmd.CommandText = fks;
-		//	cmd.ExecuteNonQuery();
-		//}
-		
+		Console.WriteLine("Creating foreign keys");
+		{
+			var w = new StringWriter();
+			GenerateFKs(conn, w);
+			var fks = w.ToString();
+			var cmd = dst.CreateCommand();
+			cmd.CommandText = fks;
+			cmd.ExecuteNonQuery();
+		}
+
 		Console.WriteLine($"{"TOTAL",-75} {total.Elapsed}");
 
 		Console.WriteLine("Done");
