@@ -16,14 +16,15 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Data.SqlClient" Version="4.1.0" />
-		<PackageReference Include="Npgsql" Version="6.0.5" />
-		<PackageReference Include="Spectre.Console" Version="0.44.0" />
+		<PackageReference Include="Microsoft.Data.SqlClient" Version="5.0.1" />
+		<PackageReference Include="Npgsql" Version="6.0.7" />
+		<PackageReference Include="Spectre.Console" Version="0.45.0" />
+		<PackageReference Include="Spectre.Console.Cli" Version="0.45.0" />
 		<PackageReference Include="Sylvan.Common" Version="0.3.0" />
-		<PackageReference Include="Sylvan.Data" Version="0.2.2" />
-		<PackageReference Include="Sylvan.Data.Csv" Version="1.1.16" />
-		<PackageReference Include="Sylvan.Data.Excel" Version="0.2.1" />
-		<PackageReference Include="Sylvan.Data.XBase" Version="0.1.1" />
+		<PackageReference Include="Sylvan.Data" Version="0.2.7" />
+		<PackageReference Include="Sylvan.Data.Csv" Version="1.2.2" />
+		<PackageReference Include="Sylvan.Data.Excel" Version="0.4.0-b0008" />
+		<PackageReference Include="Sylvan.Data.XBase" Version="0.1.2" />
 		<PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
 		<PackageReference Include="System.Data.SQLite" Version="1.0.116" />
 		<!--

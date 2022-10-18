@@ -1,21 +1,52 @@
-﻿using Sylvan.Data.Csv;
+﻿using Npgsql;
 using Sylvan.Data.Etl;
-using System.Diagnostics;
+using Sylvan.Data.Etl.Providers.Npgsql;
+using Sylvan.Data.Etl.Providers.SqlServer;
+using System.Data.Common;
+using System.Data.SqlClient;
+using TestConsole;
 
-var sw = Stopwatch.StartNew();
+const string Db = "sc3";
 
-var loader = new SqliteProvider("Data Source=mydata.db");
-//File.Delete("asdf");
+var log = new ConsoleLogger();
 
-var csv = CsvDataReader.Create("/data/csv/yellow_tripdata_2020-01.csv");
+var scsb = new SqlConnectionStringBuilder
+{
+	DataSource = ".",
+	InitialCatalog = Db,
+	IntegratedSecurity = true,
+};
 
-loader.LoadData("data", csv);
-var ww = CsvDataWriter.Create("dumperoo.csv");
-var conn = loader.GetConnection();
-var cmd = conn.CreateCommand();
-cmd.CommandText = "select * from data";
-var r = cmd.ExecuteReader();
-ww.Write(r);
+var src = new SqlServerProvider(scsb.ConnectionString);
 
-sw.Stop();
-Console.WriteLine("Done " + sw.Elapsed);
+var dcsb = new NpgsqlConnectionStringBuilder
+{
+	Host = "localhost",
+	IntegratedSecurity = true,
+};
+
+var dstConn = new NpgsqlConnection(dcsb.ConnectionString);
+dstConn.Open();
+
+RecreateDb(dstConn, Db);
+
+dcsb.Database = Db;
+
+var dst = new NpgsqlProvider(dcsb.ConnectionString);
+
+var proc = new MigrateProcess(src, dst, log);
+
+proc.Execute();
+
+static void RecreateDb(DbConnection conn, string db)
+{
+	var cmd = conn.CreateCommand();
+	cmd.CommandText = "drop database " + db;
+	try
+	{
+		cmd.ExecuteNonQuery();
+	}
+	catch { }
+	cmd.CommandText = "create database " + db;
+	cmd.ExecuteNonQuery();
+}

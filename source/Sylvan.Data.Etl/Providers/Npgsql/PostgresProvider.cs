@@ -3,13 +3,13 @@ using System.Data.Common;
 using Npgsql;
 using NpgsqlTypes;
 
-namespace Sylvan.Data.Etl.Providers.NpgSql;
+namespace Sylvan.Data.Etl.Providers.Npgsql;
 
-class PostgresProvider : DbProvider
+public class NpgsqlProvider : DbProvider
 {
 	readonly string connectionString;
 
-	public PostgresProvider(string connectionString)
+	public NpgsqlProvider(string connectionString)
 	{
 		this.connectionString = connectionString;
 	}
@@ -27,7 +27,9 @@ class PostgresProvider : DbProvider
 	{
 		var w = new StringWriter();
 
-		w.WriteLine("create table " + DbStyle.Convert(name) + " (");
+		var tableName = DbStyle.Convert(name);
+
+		w.WriteLine("create table " + tableName + " (");
 
 		var first = true;
 		foreach (var col in cols)
@@ -44,10 +46,17 @@ class PostgresProvider : DbProvider
 			var colName = DbStyle.Convert(col.ColumnName);
 			w.Write(colName);
 			w.Write(' ');
-			switch (Type.GetTypeCode(col.DataType))
+			var type = col.DataType;
+			switch (Type.GetTypeCode(type))
 			{
 				case TypeCode.Boolean:
 					w.Write("boolean");
+					break;
+				case TypeCode.Byte:
+					w.Write("smallint");
+					break;
+				case TypeCode.Int16:
+					w.Write("smallint");
 					break;
 				case TypeCode.Int32:
 					w.Write("integer");
@@ -56,10 +65,10 @@ class PostgresProvider : DbProvider
 					w.Write("bigint");
 					break;
 				case TypeCode.String:
-					w.Write("varchar");
-					w.Write("(");
-					w.Write(Math.Min(col.ColumnSize ?? 32, 256));
-					w.Write(")");
+					w.Write("text");
+					//w.Write("(");
+					//w.Write(Math.Min(col.ColumnSize ?? 32, 256));
+					//w.Write(")");
 					break;
 				case TypeCode.DateTime:
 					w.Write("timestamp");
@@ -74,6 +83,17 @@ class PostgresProvider : DbProvider
 					w.Write("numeric");
 					break;
 				default:
+					if (type == typeof(byte[]))
+					{
+						w.Write("bytea");
+						break;
+					}
+					if (type == typeof(Guid))
+					{
+						w.Write("uuid");
+						break;
+					}
+
 					throw new NotSupportedException();
 			}
 
@@ -82,15 +102,34 @@ class PostgresProvider : DbProvider
 		}
 		w.WriteLine();
 		w.WriteLine(");");
+		//w.Write($"alter table {tableName} add primary key (");
+		//first = true;
+		//foreach (var col in cols)
+		//{
+		//	if (col.IsKey == true)
+		//	{
+		//		if (first)
+		//		{
+		//			first = false;
+		//		}
+		//		else
+		//		{
+		//			w.Write(",");
+		//		}
+		//		w.WriteLine(DbStyle.Convert(col.ColumnName));
+		//	}
+		//}
+		//w.WriteLine(");");
 		return w.ToString();
 	}
 
 	public override long LoadData(string table, DbDataReader data)
 	{
-		using var sqlConn = (NpgsqlConnection)GetConnection();
-		var tbl = BuildTable(table, data.GetColumnSchema());
-		var cmd = sqlConn.CreateCommand();
-		cmd.CommandText = tbl;
+		using var conn = (NpgsqlConnection)GetConnection();
+		var schema = data.GetColumnSchema();
+		var createTableCmd = BuildTable(table, schema);
+		var cmd = conn.CreateCommand();
+		cmd.CommandText = createTableCmd;
 		try
 		{
 			cmd.ExecuteNonQuery();
@@ -99,7 +138,7 @@ class PostgresProvider : DbProvider
 		{
 			throw new InvalidOperationException($"Failed to create table {table}.", e);
 		}
-		return WriteData(sqlConn, table, data);
+		return WriteData(conn, table, data);
 	}
 
 	static long WriteData(NpgsqlConnection conn, string table, DbDataReader data)
@@ -120,7 +159,7 @@ class PostgresProvider : DbProvider
 		}
 
 		sw.Write(")");
-		sw.Write("from stdin (format binary)");
+		sw.Write("from stdin (format binary);");
 
 		var cmd = sw.ToString();
 
@@ -130,14 +169,27 @@ class PostgresProvider : DbProvider
 			bi.StartRow();
 			for (var i = 0; i < data.FieldCount; i++)
 			{
+				if (data.IsDBNull(i))
+				{
+					bi.WriteNull();
+					continue;
+				}
 				var type = schema[i].DataType;
 				var dbType = GetType(type);
 
 				switch (dbType)
 				{
+					case NpgsqlDbType.Text:
+						var t = data.GetString(i);
+						bi.Write(t, dbType);
+						break;
 					case NpgsqlDbType.Char:
 						var str = data.GetString(i);
 						bi.Write(str, dbType);
+						break;
+					case NpgsqlDbType.Smallint:
+						// TODO: need to figure out "tinyint" scenario. npg doesn't support it.
+						bi.Write(data.GetByte(i), dbType);
 						break;
 					case NpgsqlDbType.Integer:
 						bi.Write(data.GetInt32(i), dbType);
@@ -158,6 +210,12 @@ class PostgresProvider : DbProvider
 					case NpgsqlDbType.Timestamp:
 						bi.Write(data.GetDateTime(i), dbType);
 						break;
+					case NpgsqlDbType.Uuid:
+						bi.Write(data.GetGuid(i), dbType);
+						break;
+					case NpgsqlDbType.Bytea:
+						bi.Write((byte[])data.GetValue(i), dbType);
+						break;
 					default:
 						throw new NotSupportedException();
 				}
@@ -169,10 +227,16 @@ class PostgresProvider : DbProvider
 	static NpgsqlDbType GetType(Type type)
 	{
 		if (type == typeof(string))
-			return NpgsqlDbType.Char;
+			return NpgsqlDbType.Text;
+
+		if (type == typeof(byte))
+			return NpgsqlDbType.Smallint;
 
 		if (type == typeof(int))
 			return NpgsqlDbType.Integer;
+
+		if (type == typeof(long))
+			return NpgsqlDbType.Bigint;
 
 		if (type == typeof(bool))
 			return NpgsqlDbType.Boolean;
@@ -185,6 +249,12 @@ class PostgresProvider : DbProvider
 
 		if (type == typeof(DateTime))
 			return NpgsqlDbType.Timestamp;
+
+		if (type == typeof(byte[]))
+			return NpgsqlDbType.Bytea;
+
+		if (type == typeof(Guid))
+			return NpgsqlDbType.Uuid;
 
 		throw new NotSupportedException();
 	}

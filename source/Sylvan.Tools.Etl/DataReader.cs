@@ -24,6 +24,7 @@ static class DataReader
 			case ".dbf":
 				return OpenXBase(filename);
 			case ".xls":
+			case ".xlsb":
 			case ".xlsx":
 				return OpenExcel(filename, useSchema, prog);
 			case ".zip":
@@ -115,10 +116,6 @@ static class DataReader
 			// can't provide progress, so don't bother wrapping
 			return edr;
 		}
-
-
-
-
 	}
 
 	static Schema GetSchema(string file)

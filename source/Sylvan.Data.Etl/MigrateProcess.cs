@@ -1,19 +1,42 @@
-﻿using System.Data;
+﻿using Microsoft.Extensions.Logging;
 using System.Data.Common;
 using System.Diagnostics;
 
 namespace Sylvan.Data.Etl;
 
-class MigrateProcess
+sealed class NullLogger : ILogger
+{
+	public static ILogger Instance = new NullLogger();
+
+	private NullLogger() { }
+
+	public IDisposable BeginScope<TState>(TState state)
+	{
+		return null!;
+	}
+
+	public bool IsEnabled(LogLevel logLevel)
+	{
+		return false;
+	}
+
+	public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+	{
+	}
+}
+
+public class MigrateProcess
 {
 	readonly DbProvider source;
 	readonly DbProvider target;
 	readonly IMapping mapping;
+	readonly ILogger log;
 
-	public MigrateProcess(DbProvider source, DbProvider target)
+	public MigrateProcess(DbProvider source, DbProvider target, ILogger log)
 	{
 		this.source = source;
 		this.target = target;
+		this.log = log;
 		this.mapping = Mapping.Identity;
 	}
 
@@ -21,19 +44,8 @@ class MigrateProcess
 	{
 		var style = new UnderscoreStyle(CasingStyle.LowerCase);
 
-		var sConn = source.GetConnection();
-		var tConn = target.GetConnection();
-
-		//var csb = new SqlConnectionStringBuilder()
-		//{
-		//	DataSource = sqlHost,
-		//	InitialCatalog = dbName,
-		//	IntegratedSecurity = true,
-		//};
-
-		//var conn = new SqlConnection(csb.ConnectionString);
-
-		//conn.Open();
+		using var sConn = source.GetConnection();
+		using var tConn = target.GetConnection();
 
 		Export(sConn, tConn);
 	}
@@ -80,20 +92,31 @@ class MigrateProcess
 			dstCmd.ExecuteNonQuery();
 			dstCmd.CommandText = str;
 			dstCmd.ExecuteNonQuery();
-			WriteData(reader, dst, table);
+			var count = WriteData(reader, target, table);
 
-			Console.WriteLine($" {sw.Elapsed}");
+			Console.WriteLine($" {sw.Elapsed} {count}");
 		}
+		//Console.WriteLine("Creating primary keys");
+		//{
+		//	var w = new StringWriter();
+		//	GeneratePKs(conn, w);
+		//	var pks = w.ToString();
+		//	var cmd = dst.CreateCommand();
+		//	cmd.CommandText = pks;
+		//	cmd.ExecuteNonQuery();
+		//}
+
+		//Console.WriteLine("Creating foreign keys");
+		//{
+		//	var w = new StringWriter();
+		//	GenerateFKs(conn, w);
+		//	var fks = w.ToString();
+		//	var cmd = dst.CreateCommand();
+		//	cmd.CommandText = fks;
+		//	cmd.ExecuteNonQuery();
+		//}
+		
 		Console.WriteLine($"{"TOTAL",-75} {total.Elapsed}");
-		Console.WriteLine("Creating foreign keys");
-		{
-			var w = new StringWriter();
-			GenerateFKs(conn, w);
-			var fks = w.ToString();
-			var cmd = dst.CreateCommand();
-			cmd.CommandText = fks;
-			cmd.ExecuteNonQuery();
-		}
 
 		Console.WriteLine("Done");
 	}
@@ -208,12 +231,10 @@ class MigrateProcess
 		return w.ToString();
 	}
 
-	static void WriteData(DbDataReader data, DbConnection conn, TableInfo table)
+	static long WriteData(DbDataReader data, DbProvider provider, TableInfo table)
 	{
-
-		throw new NotImplementedException();
+		return provider.LoadData(table.TableName, data);
 	}
-
 
 	static void GenerateFKs(DbConnection conn, TextWriter w)
 	{
@@ -251,6 +272,57 @@ class MigrateProcess
 		r?.WriteConstraint(w);
 	}
 
+	static void GeneratePKs(DbConnection conn, TextWriter w)
+	{
+		using var cmd = conn.CreateCommand();
+		cmd.CommandText = Sql.PrimaryKeyInfo;
+		using var reader = cmd.ExecuteReader();
+
+		var columns = new List<string>();
+		string? curPk = null;
+		string? tableSchema = null;
+		string? tableName = null;
+
+		while (reader.Read())
+		{
+			var pkName = reader.GetString(0);
+
+			if (curPk != null && curPk != pkName)
+			{
+				WritePK(w, curPk, tableSchema!, tableName!, columns);
+				columns.Clear();
+			}
+
+			tableSchema = reader.GetString(1);
+			tableName = reader.GetString(2);
+			var columnName = reader.GetString(3);
+			var ordinal = reader.GetInt32(4);
+
+			curPk = pkName;
+			columns.Add(columnName);
+		}
+
+		if (curPk != null)
+		{
+			WritePK(w, curPk, tableSchema!, tableName!, columns);
+		}
+
+		void WritePK(TextWriter writer, string pkName, string schema, string table, List<string> columns)
+		{
+			writer.Write("alter table \"" + schema + "\".\"" + table + "\"");
+			writer.Write($" add constraint \"{pkName}\" primary key (");
+			for (int i = 0; i < columns.Count; i++)
+			{
+				if (i > 0)
+					writer.Write(",");
+				writer.Write("\"");
+				writer.Write(columns[i]);
+				writer.Write("\"");
+			}
+			writer.WriteLine(");");
+		}
+	}
+
 	class TableReference
 	{
 		public QualifiedName ReferenceName { get; }
@@ -272,6 +344,7 @@ class MigrateProcess
 		}
 
 		public void WriteConstraint(TextWriter w)
+
 		{
 			w.Write("alter table ");
 			SourceTable.Write(w);

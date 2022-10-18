@@ -4,7 +4,7 @@ using System.Data.SqlClient;
 
 namespace Sylvan.Data.Etl.Providers.SqlServer;
 
-class SqlServerProvider : DbProvider
+public class SqlServerProvider : DbProvider
 {
 
 	//	static readonly Dictionary<string, DbType> TypeMap;

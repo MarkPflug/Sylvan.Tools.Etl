@@ -8,7 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Sylvan.Data.Csv" Version="1.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.2" />
+    <PackageReference Include="Sylvan.Data.Csv" Version="1.2.2" />
 
 	  <PackageReference Include="System.Data.SQLite" Version="1.0.116" />
   </ItemGroup>
