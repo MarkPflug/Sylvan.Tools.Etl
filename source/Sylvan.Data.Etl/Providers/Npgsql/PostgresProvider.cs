@@ -21,18 +21,13 @@ public class NpgsqlProvider : DbProvider
 		return conn;
 	}
 
-	static IdentifierStyle DbStyle = IdentifierStyle.Database;
-
-	string BuildTable(string name, IEnumerable<DbColumn> cols)
+	string BuildTable(TableInfo table)
 	{
 		var w = new StringWriter();
-
-		var tableName = DbStyle.Convert(name);
-
-		w.WriteLine("create table " + tableName + " (");
+		w.WriteLine($"create table {table.TableSchema}.{table.TableName} (");
 
 		var first = true;
-		foreach (var col in cols)
+		foreach (var col in table.Columns)
 		{
 			if (first)
 			{
@@ -43,7 +38,7 @@ public class NpgsqlProvider : DbProvider
 				w.WriteLine(",");
 			}
 
-			var colName = DbStyle.Convert(col.ColumnName);
+			var colName = col.ColumnName;
 			w.Write(colName);
 			w.Write(' ');
 			var type = col.DataType;
@@ -123,12 +118,16 @@ public class NpgsqlProvider : DbProvider
 		return w.ToString();
 	}
 
-	public override long LoadData(string table, DbDataReader data)
+	public override long LoadData(TableMapping mapping, DbDataReader data)
 	{
 		using var conn = (NpgsqlConnection)GetConnection();
 		var schema = data.GetColumnSchema();
-		var createTableCmd = BuildTable(table, schema);
 		var cmd = conn.CreateCommand();
+
+		cmd.CommandText = $"create schema if not exists {mapping.TargetTable!.TableSchema}";
+		cmd.ExecuteNonQuery();
+
+		var createTableCmd = BuildTable(mapping.TargetTable!);
 		cmd.CommandText = createTableCmd;
 		try
 		{
@@ -136,26 +135,24 @@ public class NpgsqlProvider : DbProvider
 		}
 		catch (Exception e)
 		{
-			throw new InvalidOperationException($"Failed to create table {table}.", e);
+			throw new InvalidOperationException($"Failed to create table {mapping.TargetTable}.", e);
 		}
-		return WriteData(conn, table, data);
+		return WriteData(conn, mapping.TargetTable!, data);
 	}
 
-	static long WriteData(NpgsqlConnection conn, string table, DbDataReader data)
+	static long WriteData(NpgsqlConnection conn, TableInfo table, DbDataReader data)
 	{
-		var schema = data.GetColumnSchema();
+		var schema = table.Columns;
 
 		var sw = new StringWriter();
-		sw.Write("copy ");
-		sw.Write(DbStyle.Convert(table));
-		sw.Write("(");
+		sw.WriteLine($"copy {table.TableSchema}.{table.TableName} (");
 		for (int i = 0; i < schema.Count; i++)
 		{
 			if (i > 0)
 				sw.Write(", ");
 
 			var colSchema = schema[i];
-			sw.Write(DbStyle.Convert(colSchema.ColumnName));
+			sw.Write(colSchema.ColumnName);
 		}
 
 		sw.Write(")");

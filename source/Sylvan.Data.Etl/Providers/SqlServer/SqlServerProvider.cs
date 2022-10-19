@@ -7,34 +7,35 @@ namespace Sylvan.Data.Etl.Providers.SqlServer;
 public class SqlServerProvider : DbProvider
 {
 
-	//	static readonly Dictionary<string, DbType> TypeMap;
+	static readonly Dictionary<string, DbType> TypeMap;
 
-	//	static SqlProvider()
-	//	{
-	//		TypeMap = new Dictionary<string, DbType>(StringComparer.OrdinalIgnoreCase)
-	//		{
-	//			{"bit", DbType.Boolean },
-	//			{"tinyint", DbType.Byte },
-	//			{"smallint", DbType.Int16 },
-	//			{"int", DbType.Int32 },
-	//			{"bigint", DbType.Int64 },
-	//			{"binary", DbType.Binary },
-	//			{"date", DbType.Date },
-	//			{"datetime", DbType.DateTime },
-	//			{"datetime2", DbType.DateTime2 },
-	//			{"datetimeoffset", DbType.DateTimeOffset },
-	//			{"varchar", DbType.AnsiString },
-	//			{"char", DbType.AnsiStringFixedLength },
-	//			{"real", DbType.Single },
-	//			{"float", DbType.Double },
-	//			{"decimal", DbType.Decimal },
-	//			{"numeric", DbType.Decimal },
-	//			{"smallmoney", DbType.Decimal },
-	//			{"money", DbType.Decimal },
-	//			{"ntext", DbType.String },
-	//			{"image", DbType.Binary },
-	//		};
-	//	}
+	static SqlServerProvider()
+	{
+		TypeMap = new Dictionary<string, DbType>(StringComparer.OrdinalIgnoreCase)
+			{
+				{"bit", DbType.Boolean },
+				{"tinyint", DbType.Byte },
+				{"smallint", DbType.Int16 },
+				{"int", DbType.Int32 },
+				{"bigint", DbType.Int64 },
+				{"binary", DbType.Binary },
+				{"date", DbType.Date },
+				{"datetime", DbType.DateTime },
+				{"datetime2", DbType.DateTime2 },
+				{"datetimeoffset", DbType.DateTimeOffset },
+				{"varchar", DbType.AnsiString },
+				{"char", DbType.AnsiStringFixedLength },
+				{"real", DbType.Single },
+				{"float", DbType.Double },
+				{"decimal", DbType.Decimal },
+				{"numeric", DbType.Decimal },
+				{"smallmoney", DbType.Decimal },
+				{"money", DbType.Decimal },
+				{"ntext", DbType.String },
+				{"image", DbType.Binary },
+			};
+	}
+
 	string connectionString;
 
 	string BuildTable(string name, IEnumerable<DbColumn> cols)
@@ -121,7 +122,7 @@ public class SqlServerProvider : DbProvider
 		return conn;
 	}
 
-	public override long LoadData(string table, DbDataReader data)
+	public override long LoadData(TableMapping table, DbDataReader data)
 	{
 		using var sqlConn = (SqlConnection)GetConnection();
 		//var tbl = BuildTable(table, data.GetColumnSchema());
@@ -139,13 +140,15 @@ public class SqlServerProvider : DbProvider
 		using var bc = new SqlBulkCopy(sqlConn);
 		bc.BulkCopyTimeout = 0;
 		bc.EnableStreaming = true;
-		bc.DestinationTableName = table;
+
+		var t = table.TargetTable!;
+		bc.DestinationTableName = t.TableSchema + "." +t.TableName;
 		bc.WriteToServer(data);
 		return -1;		
 	}
 
 	public override DbType GetType(string typeName)
 	{
-		throw new NotImplementedException();
+		return TypeMap.TryGetValue(typeName, out var type) ? type : DbType.Object;
 	}
 }

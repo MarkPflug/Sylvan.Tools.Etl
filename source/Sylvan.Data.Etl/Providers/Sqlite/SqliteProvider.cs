@@ -9,6 +9,18 @@ public class SqliteProvider : DbProvider
 {
 	string connectionString;
 
+	public override IEnumerable<string> IgnoreSchemas
+	{
+		get
+		{
+			yield return "information_schema";
+			yield return "pg_catalog";
+			yield return "pg_temp_1";
+			yield return "pg_toast_temp_1";
+			yield return "pg_toast";
+		}
+	}
+
 	string BuildTable(string name, IEnumerable<DbColumn> cols)
 	{
 		var w = new StringWriter();
@@ -72,64 +84,65 @@ public class SqliteProvider : DbProvider
 		return conn;
 	}
 
-	public override long LoadData(string table, DbDataReader data)
+	public override long LoadData(TableMapping table, DbDataReader data)
 	{
-		var conn = GetConnection();
+		throw new NotImplementedException();
+		//var conn = GetConnection();
 
-		{ 
-			var cmd = conn.CreateCommand();
-			var tbl = BuildTable(table, data.GetColumnSchema());
+		//{ 
+		//	var cmd = conn.CreateCommand();
+		//	var tbl = BuildTable(table, data.GetColumnSchema());
 
-			cmd.CommandText = tbl;
-			cmd.ExecuteNonQuery();
-		}
+		//	cmd.CommandText = tbl;
+		//	cmd.ExecuteNonQuery();
+		//}
 
-		ReadOnlyCollection<DbColumn> ss;
-		{
-			var cmd = conn.CreateCommand();
-			cmd.CommandText = "select * from " + table + " limit 0;";
-			var r = cmd.ExecuteReader();
-			ss = r.GetColumnSchema();
-		}
+		//ReadOnlyCollection<DbColumn> ss;
+		//{
+		//	var cmd = conn.CreateCommand();
+		//	cmd.CommandText = "select * from " + table + " limit 0;";
+		//	var r = cmd.ExecuteReader();
+		//	ss = r.GetColumnSchema();
+		//}
 
-		var cmdW = new StringWriter();
-		cmdW.Write("insert into " + table + " values(");
-		int i = 0;
-		foreach (var c in ss)
-		{
-			if (i > 0)
-				cmdW.Write(",");
-			cmdW.Write("$p" + i++);
-		}
+		//var cmdW = new StringWriter();
+		//cmdW.Write("insert into " + table + " values(");
+		//int i = 0;
+		//foreach (var c in ss)
+		//{
+		//	if (i > 0)
+		//		cmdW.Write(",");
+		//	cmdW.Write("$p" + i++);
+		//}
 
-		cmdW.Write(");");
-		var cmdt = cmdW.ToString();
-		long count = 0;
+		//cmdW.Write(");");
+		//var cmdt = cmdW.ToString();
+		//long count = 0;
 
-		using (var tx = conn.BeginTransaction())
-		{
-			var cmd = conn.CreateCommand();
-			cmd.CommandText = cmdt;
-			for (i = 0; i < data.FieldCount; i++)
-			{
-				var p = cmd.CreateParameter();
-				p.ParameterName = "$p" + i;
-				cmd.Parameters.Add(p);
-			}
-			cmd.Prepare();
-			while (data.Read())
-			{
-				for (i = 0; i < data.FieldCount; i++)
-				{
-					cmd.Parameters[i].Value = data.GetValue(i);
-				}
-				count++;
-				cmd.ExecuteNonQuery();
-			}
+		//using (var tx = conn.BeginTransaction())
+		//{
+		//	var cmd = conn.CreateCommand();
+		//	cmd.CommandText = cmdt;
+		//	for (i = 0; i < data.FieldCount; i++)
+		//	{
+		//		var p = cmd.CreateParameter();
+		//		p.ParameterName = "$p" + i;
+		//		cmd.Parameters.Add(p);
+		//	}
+		//	cmd.Prepare();
+		//	while (data.Read())
+		//	{
+		//		for (i = 0; i < data.FieldCount; i++)
+		//		{
+		//			cmd.Parameters[i].Value = data.GetValue(i);
+		//		}
+		//		count++;
+		//		cmd.ExecuteNonQuery();
+		//	}
 
-			tx.Commit();
-		}
-		return count;
+		//	tx.Commit();
+		//}
+		//return count;
 	}
 
 	public override DbType GetType(string typeName)

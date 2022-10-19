@@ -1,17 +1,22 @@
-﻿using System.Data.Common;
+﻿using System.Data;
+using System.Data.Common;
 
 namespace Sylvan.Data.Etl;
 
-class TableInfo
+public class TableInfo
 {
 	public TableInfo(string tableSchema, string tableName)
 	{
 		this.TableSchema = tableSchema;
 		this.TableName = tableName;
+		this.Columns = new List<ColumnInfo>();
 	}
 
 	public string TableSchema { get; }
+
 	public string TableName { get; }
+
+	public List<ColumnInfo> Columns { get; }
 
 	public override string ToString()
 	{
@@ -19,17 +24,87 @@ class TableInfo
 	}
 }
 
-class ColumnInfo
+public class ColumnInfo : DbColumn
 {
-	public ColumnInfo(string name)
+	public ColumnInfo(string name, string typeName, DbType type, bool allowNull, int? textLength)
 	{
-		this.Name = name;
+		this.ColumnName = name;
+		this.DataTypeName = typeName;
+		this.DbType = type;
+		this.DataType = GetDataType(type);
+		this.AllowDBNull = allowNull;
+		this.ColumnSize = textLength;
 	}
 
-	public string Name { get; }
-
-	public static implicit operator ColumnInfo(DbColumn col)
+	Type GetDataType(DbType type)
 	{
-		return new ColumnInfo(col.ColumnName);
+		switch (type)
+		{
+			case DbType.Byte:
+				return typeof(byte);
+			case DbType.Boolean:
+				return typeof(bool);
+			case DbType.Int16:
+				return typeof(short);
+			case DbType.Int32:
+				return typeof(int);
+			case DbType.Int64:
+				return typeof(long);
+			case DbType.String:
+			case DbType.StringFixedLength:
+			case DbType.AnsiString:
+			case DbType.AnsiStringFixedLength:
+				return typeof(string);
+			case DbType.Decimal:
+				return typeof(decimal);
+			case DbType.Date:
+			case DbType.DateTime:
+			case DbType.DateTime2:
+				return typeof(DateTime);
+			case DbType.Double:
+				return typeof(double);
+			case DbType.Single:
+				return typeof(float);
+			case DbType.Binary:
+				return typeof(byte[]);
+			default:
+				throw new NotSupportedException();
+		}
+	}
+
+	public DbType DbType { get; }
+
+	public override string ToString()
+	{
+		return $"{this.ColumnName} ({this.DbType}) {(this.AllowDBNull == false ? "" : "null")}";
+	}
+}
+
+public class TableMapping
+{
+	public TableInfo SourceTable { get; set; }
+
+	public TableInfo? TargetTable { get; set; }
+
+	public TableMapping(TableInfo source, TableInfo? target)
+	{
+		this.SourceTable = source;
+		this.TargetTable = target;
+		this.ColumnMappings = new List<ColumnMapping>();
+	}
+
+	public List<ColumnMapping> ColumnMappings { get; set; }
+}
+
+public class ColumnMapping
+{
+	public ColumnInfo SourceColumn { get; }
+
+	public ColumnInfo? TargetColumn { get; }
+
+	public ColumnMapping(ColumnInfo source, ColumnInfo? target)
+	{
+		this.SourceColumn = source;
+		this.TargetColumn = target;
 	}
 }
