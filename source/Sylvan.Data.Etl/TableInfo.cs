@@ -80,18 +80,44 @@ public class ColumnInfo : DbColumn
 	}
 }
 
+public class DatabaseMapping
+{
+	public DatabaseMapping(List<TableMapping> tableMappings)
+	{
+		this.TableMappings = tableMappings;
+	}
+
+	public List<TableMapping> TableMappings { get; }
+
+	public TableMapping? this[string schema, string table]
+	{
+		get
+		{
+			var c = StringComparer.OrdinalIgnoreCase;
+			foreach (var m in TableMappings)
+			{
+				if (c.Equals(schema, m.SourceTable.TableSchema) && c.Equals(table, m.SourceTable.TableName))
+				{
+					return m;
+				}
+			}
+			return null;
+		}
+	}
+}
+
 public class TableMapping
 {
-	public TableInfo SourceTable { get; set; }
-
-	public TableInfo? TargetTable { get; set; }
-
 	public TableMapping(TableInfo source, TableInfo? target)
 	{
 		this.SourceTable = source;
 		this.TargetTable = target;
 		this.ColumnMappings = new List<ColumnMapping>();
 	}
+
+	public TableInfo SourceTable { get; set; }
+
+	public TableInfo? TargetTable { get; set; }
 
 	public List<ColumnMapping> ColumnMappings { get; set; }
 }
@@ -106,5 +132,10 @@ public class ColumnMapping
 	{
 		this.SourceColumn = source;
 		this.TargetColumn = target;
+	}
+
+	public override string ToString()
+	{
+		return $"{SourceColumn.ColumnName} => {TargetColumn?.ColumnName}";
 	}
 }

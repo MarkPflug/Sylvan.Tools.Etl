@@ -40,8 +40,6 @@ public class MigrateProcess
 		this.mapping = new NameStyleMapping(new UnderscoreStyle(CasingStyle.LowerCase));
 	}
 
-	
-
 	void TerminalError(string msg, Exception ex)
 	{
 		Console.Error.WriteLine(msg);
@@ -76,27 +74,26 @@ public class MigrateProcess
 		using var tConn = target.GetConnection();
 
 		var tables = source.GetTableInfo();
-		var total = Stopwatch.StartNew();
-		foreach (var table in tables)
-		{
-			Console.Write($"{table.TableName,-75}");
 
-			var mapping = MapTable(table, this.mapping);
-			if (mapping.TargetTable == null)
+		var tableMappings = tables.Select(t => MapTable(t, this.mapping)).ToList();
+		var dbMapping = new DatabaseMapping(tableMappings);
+
+		var total = Stopwatch.StartNew();
+		foreach (var mapping in tableMappings)
+		{
+			Console.Write($"{mapping.SourceTable.TableName,-75}");
+			if(mapping.TargetTable == null)
 			{
-				Console.WriteLine($" SKIPPED");
+				Console.WriteLine($" skipped.");
 				continue;
 			}
+
 
 			var sw = Stopwatch.StartNew();
 			using var cmd = sConn.CreateCommand();
 		
 			var str = BuildTable(mapping.TargetTable);
-			//using var dstCmd = tConn.CreateCommand();
-			//// TODO: this needs to be provider-specific
-			
-			//dstCmd.CommandText = str;
-			//dstCmd.ExecuteNonQuery();
+
 			long count = -1;
 
 			{ // load data
@@ -109,25 +106,26 @@ public class MigrateProcess
 
 			Console.WriteLine($" {sw.Elapsed} {count}");
 		}
-		//Console.WriteLine("Creating primary keys");
-		//{
-		//	var w = new StringWriter();
-		//	GeneratePKs(conn, w);
-		//	var pks = w.ToString();
-		//	var cmd = dst.CreateCommand();
-		//	cmd.CommandText = pks;
-		//	cmd.ExecuteNonQuery();
-		//}
 
-		//Console.WriteLine("Creating foreign keys");
-		//{
-		//	var w = new StringWriter();
-		//	GenerateFKs(conn, w);
-		//	var fks = w.ToString();
-		//	var cmd = dst.CreateCommand();
-		//	cmd.CommandText = fks;
-		//	cmd.ExecuteNonQuery();
-		//}
+		Console.WriteLine("Creating primary keys");
+		{
+			var w = new StringWriter();
+			GeneratePKs(dbMapping, w);
+			var pks = w.ToString();
+			var cmd = tConn.CreateCommand();
+			cmd.CommandText = pks;
+			cmd.ExecuteNonQuery();
+		}
+
+		Console.WriteLine("Creating foreign keys");
+		{
+			var w = new StringWriter();
+			GenerateFKs(dbMapping, w);
+			var fks = w.ToString();
+			var cmd = tConn.CreateCommand();
+			cmd.CommandText = fks;
+			cmd.ExecuteNonQuery();
+		}
 
 		Console.WriteLine($"{"TOTAL",-75} {total.Elapsed}");
 
@@ -246,193 +244,214 @@ public class MigrateProcess
 		return provider.LoadData(table, data);
 	}
 
-	//static void GenerateFKs(DbConnection conn, TextWriter w)
-	//{
-	//	using var cmd = conn.CreateCommand();
-	//	cmd.CommandText = Sql.ForeignKeyInfo;
-	//	using var reader = cmd.ExecuteReader();
+	void GeneratePKs(DatabaseMapping mapping, TextWriter w)
+	{
+		var conn = this.source.GetConnection();
+		using var cmd = conn.CreateCommand();
+		cmd.CommandText = Sql.PrimaryKeyInfo;
+		using var reader = cmd.ExecuteReader();
 
-	//	TableReference? r = null;
+		var columns = new List<string>();
+		string? curPk = null;
+		string? tableSchema = null;
+		string? tableName = null;
 
-	//	while (reader.Read())
-	//	{
-	//		var fkSchema = reader.GetString(0);
-	//		var fkName = reader.GetString(1);
-	//		var srcTblSchema = reader.GetString(2);
-	//		var srcTblName = reader.GetString(3);
-	//		var srcColName = reader.GetString(4);
-	//		var refTblSchema = reader.GetString(8);
-	//		var refTblName = reader.GetString(9);
-	//		var refColName = reader.GetString(10);
+		while (reader.Read())
+		{
+			var pkName = reader.GetString(0);
 
-	//		if (r?.ReferenceName.Name != fkName)
-	//		{
+			if (curPk != null && curPk != pkName)
+			{
+				WritePK(w, mapping, curPk, tableSchema!, tableName!, columns);
+				columns.Clear();
+			}
 
-	//			r?.WriteConstraint(w);
-	//			r = new TableReference(
-	//				new QualifiedName(fkSchema, fkName),
-	//				new QualifiedName(srcTblSchema, srcTblName),
-	//				new QualifiedName(refTblSchema, refTblName)
-	//			);
-	//		}
+			tableSchema = reader.GetString(1);
+			tableName = reader.GetString(2);
+			var columnName = reader.GetString(3);
+			var ordinal = reader.GetInt32(4);
 
-	//		r!.AddColumnMapping(srcColName, refColName);
-	//	}
+			curPk = pkName;
+			columns.Add(columnName);
+		}
 
-	//	r?.WriteConstraint(w);
-	//}
+		if (curPk != null)
+		{
+			WritePK(w, mapping, curPk, tableSchema!, tableName!, columns);
+		}
 
-	//static void GeneratePKs(DbConnection conn, TextWriter w)
-	//{
-	//	using var cmd = conn.CreateCommand();
-	//	cmd.CommandText = Sql.PrimaryKeyInfo;
-	//	using var reader = cmd.ExecuteReader();
+		void WritePK(TextWriter writer, DatabaseMapping mapping, string pkName, string schema, string table, List<string> columns)
+		{
+			var tm = mapping[schema, table];
+			if (tm?.TargetTable == null)
+				return;
 
-	//	var columns = new List<string>();
-	//	string? curPk = null;
-	//	string? tableSchema = null;
-	//	string? tableName = null;
+			var t = tm.TargetTable;
+			writer.Write("alter table \"" + t.TableSchema + "\".\"" + t.TableName + "\"");
+			writer.Write($" add constraint \"{pkName}\" primary key (");
 
-	//	while (reader.Read())
-	//	{
-	//		var pkName = reader.GetString(0);
+			for (int i = 0; i < columns.Count; i++)
+			{
+				if (i > 0)
+					writer.Write(",");
+				var col = columns[i];
+				var m = tm.ColumnMappings.FirstOrDefault(m => m.SourceColumn.ColumnName == col);
+				writer.Write("\"");
+				writer.Write(m.TargetColumn!.ColumnName!);
+				writer.Write("\"");
+			}
+			writer.WriteLine(");");
+		}
+	}
 
-	//		if (curPk != null && curPk != pkName)
-	//		{
-	//			WritePK(w, curPk, tableSchema!, tableName!, columns);
-	//			columns.Clear();
-	//		}
+	void GenerateFKs(DatabaseMapping mapping, TextWriter w)
+	{
+		var conn = this.source.GetConnection();
+		using var cmd = conn.CreateCommand();
+		cmd.CommandText = Sql.ForeignKeyInfo;
+		using var reader = cmd.ExecuteReader();
 
-	//		tableSchema = reader.GetString(1);
-	//		tableName = reader.GetString(2);
-	//		var columnName = reader.GetString(3);
-	//		var ordinal = reader.GetInt32(4);
+		TableReference? r = null;
 
-	//		curPk = pkName;
-	//		columns.Add(columnName);
-	//	}
+		while (reader.Read())
+		{
+			var fkSchema = reader.GetString(0);
+			var fkName = reader.GetString(1);
+			var srcTblSchema = reader.GetString(2);
+			var srcTblName = reader.GetString(3);
+			var srcColName = reader.GetString(4);
+			var refTblSchema = reader.GetString(8);
+			var refTblName = reader.GetString(9);
+			var refColName = reader.GetString(10);
 
-	//	if (curPk != null)
-	//	{
-	//		WritePK(w, curPk, tableSchema!, tableName!, columns);
-	//	}
+			if (r?.ReferenceName.Name != fkName)
+			{
+				r?.WriteConstraint(w, mapping);
+				r = new TableReference(
+					new QualifiedName(fkSchema, fkName),
+					new QualifiedName(srcTblSchema, srcTblName),
+					new QualifiedName(refTblSchema, refTblName)
+				);
+			}
 
-	//	void WritePK(TextWriter writer, string pkName, string schema, string table, List<string> columns)
-	//	{
-	//		writer.Write("alter table \"" + schema + "\".\"" + table + "\"");
-	//		writer.Write($" add constraint \"{pkName}\" primary key (");
-	//		for (int i = 0; i < columns.Count; i++)
-	//		{
-	//			if (i > 0)
-	//				writer.Write(",");
-	//			writer.Write("\"");
-	//			writer.Write(columns[i]);
-	//			writer.Write("\"");
-	//		}
-	//		writer.WriteLine(");");
-	//	}
-	//}
+			r!.AddColumnMapping(srcColName, refColName);
+		}
 
-	//class TableReference
-	//{
-	//	public QualifiedName ReferenceName { get; }
-	//	public QualifiedName SourceTable { get; }
-	//	public QualifiedName TargetTable { get; }
-	//	List<KeyValuePair<string, string>> cols;
+		r?.WriteConstraint(w, mapping);
+	}
 
-	//	public TableReference(QualifiedName fkName, QualifiedName srcTable, QualifiedName tgtTable)
-	//	{
-	//		this.ReferenceName = fkName;
-	//		this.SourceTable = srcTable;
-	//		this.TargetTable = tgtTable;
-	//		this.cols = new List<KeyValuePair<string, string>>();
-	//	}
+	class TableReference
+	{
+		public QualifiedName ReferenceName { get; }
+		public QualifiedName SourceTable { get; }
+		public QualifiedName TargetTable { get; }
+		List<KeyValuePair<string, string>> cols;
 
-	//	public void AddColumnMapping(string source, string target)
-	//	{
-	//		this.cols.Add(new KeyValuePair<string, string>(source, target));
-	//	}
+		public TableReference(QualifiedName fkName, QualifiedName srcTable, QualifiedName tgtTable)
+		{
+			this.ReferenceName = fkName;
+			this.SourceTable = srcTable;
+			this.TargetTable = tgtTable;
+			this.cols = new List<KeyValuePair<string, string>>();
+		}
 
-	//	public void WriteConstraint(TextWriter w)
+		public void AddColumnMapping(string source, string target)
+		{
+			this.cols.Add(new KeyValuePair<string, string>(source, target));
+		}
 
-	//	{
-	//		w.Write("alter table ");
-	//		SourceTable.Write(w);
-	//		w.Write(" add constraint ");
-	//		w.Write(ReferenceName.Name);
-	//		w.Write(" foreign key (");
-	//		for (int i = 0; i < cols.Count; i++)
-	//		{
-	//			if (i != 0)
-	//				w.Write(", ");
-	//			w.Write('\"');
-	//			w.Write(cols[i].Key);
-	//			w.Write('\"');
-	//		}
-	//		w.Write(") references ");
+		public void WriteConstraint(TextWriter w, DatabaseMapping mapping)
+		{
+			var stm = mapping[SourceTable.Schema, SourceTable.Name];
+			var ttm = mapping[TargetTable.Schema, TargetTable.Name];
+			var st = stm!.TargetTable!;
+			var tt = ttm!.TargetTable!;
 
-	//		TargetTable.Write(w);
+			w.Write("alter table ");
+			
+			w.Write(st.TableSchema);
+			w.Write(".");
+			w.Write(st.TableName);
 
-	//		w.Write(" (");
-	//		for (int i = 0; i < cols.Count; i++)
-	//		{
-	//			if (i != 0)
-	//				w.Write(", ");
-	//			w.Write('\"');
-	//			w.Write(cols[i].Value);
-	//			w.Write('\"');
-	//		}
-	//		w.WriteLine(");");
-	//	}
-	//}
+			w.Write(" add constraint ");
+			w.Write(ReferenceName.Name);
+			w.Write(" foreign key (");
+			var c = StringComparer.OrdinalIgnoreCase;
+			for (int i = 0; i < cols.Count; i++)
+			{
+				if (i != 0)
+					w.Write(", ");
+				var sn = cols[i].Key;
+				var ff = stm.ColumnMappings.FirstOrDefault(m => c.Equals(m.SourceColumn.ColumnName, sn));
+				w.Write(ff.TargetColumn!.ColumnName);
+			}
+			w.Write(") references ");
 
-	//class QualifiedName : IEquatable<QualifiedName>
-	//{
-	//	public static readonly QualifiedName Null = new QualifiedName(string.Empty, string.Empty);
+			w.Write(tt.TableSchema);
+			w.Write(".");
+			w.Write(tt.TableName);
 
-	//	public QualifiedName(string schema, string name)
-	//	{
-	//		this.Schema = schema;
-	//		this.Name = name;
-	//	}
+			w.Write(" (");
+			for (int i = 0; i < cols.Count; i++)
+			{
+				if (i != 0)
+					w.Write(", ");
 
-	//	public string Schema { get; }
-	//	public string Name { get; }
+				var tn = cols[i].Value;
+				var ff = ttm.ColumnMappings.FirstOrDefault(m => c.Equals(m.SourceColumn.ColumnName, tn));
+				w.Write(ff.TargetColumn!.ColumnName);
+			}
+			w.WriteLine(");");
+		}
+	}
 
-	//	public override bool Equals(object? obj)
-	//	{
-	//		return base.Equals(obj);
-	//	}
+	class QualifiedName : IEquatable<QualifiedName>
+	{
+		public static readonly QualifiedName Null = new QualifiedName(string.Empty, string.Empty);
 
-	//	public bool Equals(QualifiedName? name)
-	//	{
-	//		if (name == null) return false;
+		public QualifiedName(string schema, string name)
+		{
+			this.Schema = schema;
+			this.Name = name;
+		}
 
-	//		var c = StringComparer.OrdinalIgnoreCase;
-	//		return
-	//			c.Equals(this.Schema, name.Schema) &&
-	//			c.Equals(this.Name, name.Name);
-	//	}
+		public string Schema { get; }
+		public string Name { get; }
 
-	//	public override int GetHashCode()
-	//	{
-	//		var c = StringComparer.OrdinalIgnoreCase;
-	//		return
-	//			HashCode.Combine(
-	//				c.GetHashCode(this.Schema),
-	//				c.GetHashCode(this.Name)
-	//			);
-	//	}
+		public override bool Equals(object? obj)
+		{
+			return base.Equals(obj);
+		}
 
-	//	public void Write(TextWriter w)
-	//	{
-	//		w.Write('\"');
-	//		w.Write(this.Schema);
-	//		w.Write('\"');
-	//		w.Write('.');
-	//		w.Write('\"');
-	//		w.Write(this.Name);
-	//		w.Write('\"');
-	//	}
-	//}
+		public bool Equals(QualifiedName? name)
+		{
+			if (name == null) return false;
+
+			var c = StringComparer.OrdinalIgnoreCase;
+			return
+				c.Equals(this.Schema, name.Schema) &&
+				c.Equals(this.Name, name.Name);
+		}
+
+		public override int GetHashCode()
+		{
+			var c = StringComparer.OrdinalIgnoreCase;
+			return
+				HashCode.Combine(
+					c.GetHashCode(this.Schema),
+					c.GetHashCode(this.Name)
+				);
+		}
+
+		public void Write(TextWriter w)
+		{
+			w.Write('\"');
+			w.Write(this.Schema);
+			w.Write('\"');
+			w.Write('.');
+			w.Write('\"');
+			w.Write(this.Name);
+			w.Write('\"');
+		}
+	}
 }

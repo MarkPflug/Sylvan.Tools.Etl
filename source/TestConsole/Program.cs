@@ -89,5 +89,4 @@ static class Program
 		cmd.CommandText = "create database " + db;
 		cmd.ExecuteNonQuery();
 	}
-
 }

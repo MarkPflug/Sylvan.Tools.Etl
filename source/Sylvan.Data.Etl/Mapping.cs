@@ -1,6 +1,4 @@
-﻿using System.Data;
-
-namespace Sylvan.Data.Etl;
+﻿namespace Sylvan.Data.Etl;
 
 public interface IMapping
 {
