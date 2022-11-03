@@ -28,18 +28,6 @@ class ExportSettings : CommandSettings
 
 class ExportCommand : Command<ExportSettings>
 {
-	DataLoader GetLoader(Provider provider)
-	{
-		switch (provider)
-		{
-			case Provider.SqlServer:
-				return new SqlServerLoader();
-			case Provider.Sqlite:
-				return new SqliteLoader();
-		}
-		throw new NotSupportedException("Unknown provider '" + provider + "'");
-	}
-
 	public override ValidationResult Validate(CommandContext context, ExportSettings settings)
 	{
 		if (settings.Provider == 0)
@@ -64,9 +52,13 @@ class ExportCommand : Command<ExportSettings>
 	{
 		var database = settings.Database;
 		var filename = settings.File;
-		var loader = GetLoader(settings.Provider);
+		var fac = DbProviderFactory.GetProviderFactory(settings.Provider);
 
-		using var conn = loader.GetConnection(database);
+		var loader = fac(database);
+
+
+
+		using var conn = loader.GetConnection();
 		var cmd = conn.CreateCommand();
 
 		cmd.CommandText = settings.Query;

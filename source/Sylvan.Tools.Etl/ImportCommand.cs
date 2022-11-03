@@ -1,7 +1,7 @@
 ﻿using Spectre.Console;
 using Spectre.Console.Cli;
-using Sylvan.Data.Csv;
-using Sylvan.IO;
+using Sylvan.Data.Etl.Providers.Npgsql;
+using Sylvan.Data.Etl.Providers.SqlServer;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -42,19 +42,7 @@ namespace Sylvan.Data.Etl
 
 	class ImportCommand : Command<ImportSettings>
 	{
-		DataLoader GetLoader(Provider provider)
-		{
-			switch (provider)
-			{
-				case Provider.SqlServer:
-					return new SqlServerLoader();
-				case Provider.Sqlite:
-					return new SqliteLoader();
-				case Provider.Postgres:
-					return new PostgresLoader();
-			}
-			throw new NotSupportedException("Unknown provider '" + provider + "'");
-		}
+		
 
 		public override ValidationResult Validate(CommandContext context, ImportSettings settings)
 		{
@@ -84,13 +72,15 @@ namespace Sylvan.Data.Etl
 				{
 					var database = settings.Database;
 					var filename = settings.File;
-					var loader = GetLoader(settings.Provider);
+					var pf = DbProviderFactory.GetProviderFactory(settings.Provider);
 					var tableName = settings.Table ?? Path.GetFileNameWithoutExtension(filename);
-					var conn = loader.GetConnection(database);
-					var schema = loader.GetSchema(conn, tableName);
+					var provider = pf(database);
+					var conn = provider.GetConnection();
+					var schema = provider.GetSchema(tableName);
 					var reader = DataReader.OpenReader(filename, prog: progressCallback, sg: schema);
 
-					loader.Load(conn, tableName, reader);
+					throw new NotImplementedException();
+					//provider.LoadData(tableName, reader);
 				});
 			}
 
