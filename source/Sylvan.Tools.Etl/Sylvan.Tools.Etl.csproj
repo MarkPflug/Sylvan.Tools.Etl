@@ -15,7 +15,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Data.SqlClient" Version="4.1.0" />
 		<PackageReference Include="Npgsql" Version="6.0.7" />
 		<PackageReference Include="Spectre.Console" Version="0.45.0" />
 		<PackageReference Include="Spectre.Console.Cli" Version="0.45.0" />
