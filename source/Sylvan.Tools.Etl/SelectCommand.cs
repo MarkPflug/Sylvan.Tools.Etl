@@ -1,10 +1,7 @@
 ﻿using Spectre.Console.Cli;
 using Sylvan.Data.Csv;
 using System;
-using System.Data.Common;
 using System.IO;
-using System.IO.Compression;
-using System.Text;
 
 namespace Sylvan.Data.Etl
 {
