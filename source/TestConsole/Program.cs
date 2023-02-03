@@ -9,7 +9,7 @@ using TestConsole;
 
 static class Program
 {
-	const string Db = "sc3";
+	const string Db = "t";
 
 	static SqlConnectionStringBuilder SqlConnStr => new SqlConnectionStringBuilder
 	{
@@ -20,7 +20,10 @@ static class Program
 
 	static void Main()
 	{
-		TestMigrate();
+		//TestMigrate();
+		var prov = (SqlServerProvider)GetProvider();
+		var m = prov.BuildMergeCommand("#load", "test");
+
 	}
 
 	static DbProvider GetProvider()
@@ -48,8 +51,6 @@ static class Program
 		//	}
 		//}
 	}
-
-
 
 	static void TestMigrate()
 	{

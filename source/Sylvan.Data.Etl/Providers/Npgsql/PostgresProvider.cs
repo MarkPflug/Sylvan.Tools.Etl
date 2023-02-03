@@ -100,6 +100,7 @@ public class NpgsqlProvider : DbProvider
 		//w.Write($"alter table {tableName} add primary key (");
 		//first = true;
 		//foreach (var col in cols)
+
 		//{
 		//	if (col.IsKey == true)
 		//	{

@@ -4,6 +4,16 @@ using System.Data.SqlClient;
 
 namespace Sylvan.Data.Etl.Providers.SqlServer;
 
+[Flags]
+public enum MergeAction
+{
+	None = 0,
+	Insert = 1,
+	Update = 2,
+	Delete = 4,
+	All = Insert | Update | Delete
+}
+
 public class SqlServerProvider : DbProvider
 {
 
@@ -122,6 +132,11 @@ public class SqlServerProvider : DbProvider
 		return conn;
 	}
 
+	public SqlConnection GetSqlConnection()
+	{
+		return (SqlConnection)GetConnection();
+	}
+
 	public override long LoadData(TableMapping table, DbDataReader data)
 	{
 		using var sqlConn = (SqlConnection)GetConnection();
@@ -142,13 +157,111 @@ public class SqlServerProvider : DbProvider
 		bc.EnableStreaming = true;
 
 		var t = table.TargetTable!;
-		bc.DestinationTableName = t.TableSchema + "." +t.TableName;
+		bc.DestinationTableName = t.TableSchema + "." + t.TableName;
 		bc.WriteToServer(data);
-		return -1;		
+		return -1;
 	}
 
 	public override DbType GetType(string typeName)
 	{
 		return TypeMap.TryGetValue(typeName, out var type) ? type : DbType.Object;
+	}
+
+	public string BuildMergeCommand(string src, string dest, MergeAction action = MergeAction.Insert | MergeAction.Update)
+	{
+		var conn = GetSqlConnection();
+
+		using var cmd = conn.CreateCommand();
+
+		cmd.CommandText = Sql.MergeInfo;
+
+		using var reader = cmd.ExecuteReader();
+
+		var keyCols = new HashSet<string>();
+		var cols = new HashSet<string>();
+
+		while (reader.Read())
+		{
+			var colName = reader.GetString(0);
+			keyCols.Add(colName);
+		}
+		reader.NextResult();
+		while (reader.Read())
+		{
+			var colName = reader.GetString(0);
+			if (!keyCols.Contains(colName))
+
+				cols.Add(colName);
+		}
+
+		var sw = new StringWriter();
+		sw.Write("merge " + dest + " as d ");
+		sw.Write("using ( select ");
+		bool first = true;
+
+		foreach (var c in keyCols.Concat(cols))
+		{
+			if (!first)
+				sw.Write(",");
+			first = false;
+			sw.Write(c);
+		}
+		sw.Write(" from " + src + ") as s ");
+		sw.Write("on ");
+
+		first = true;
+		foreach (var c in keyCols)
+		{
+			if (!first)
+				sw.Write(" and ");
+			first = false;
+			sw.Write($"s.{c} = d.{c} ");
+		}
+		if (action.HasFlag(MergeAction.Insert))
+		{
+			sw.Write(" when not matched by target then insert (");
+
+			first = true;
+			foreach (var c in keyCols.Concat(cols))
+			{
+				if (!first)
+					sw.Write(",");
+				first = false;
+				sw.Write(c);
+			}
+
+			sw.Write(") values (");
+			first = true;
+			foreach (var c in keyCols.Concat(cols))
+			{
+				if (!first)
+					sw.Write(",");
+				first = false;
+				sw.Write(c);
+			}
+
+			sw.Write(")");
+		}
+		if (action.HasFlag(MergeAction.Update))
+		{
+			sw.Write(" when matched then update set ");
+
+			first = true;
+			foreach (var c in cols)
+			{
+				if (!first)
+					sw.Write(",");
+				first = false;
+				sw.Write($" d.{c} = s.{c} ");
+			}
+		}
+
+		if (action.HasFlag(MergeAction.Delete))
+		{
+			sw.Write(" when not matched by source then delete ");
+		}
+		sw.Write(";");
+
+		return sw.ToString();
 	}
 }
