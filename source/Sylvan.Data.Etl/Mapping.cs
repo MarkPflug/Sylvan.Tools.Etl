@@ -1,4 +1,6 @@
-﻿namespace Sylvan.Data.Etl;
+﻿using Sylvan.CodeGeneration;
+
+namespace Sylvan.Data.Etl;
 
 public interface IMapping
 {
@@ -32,14 +34,31 @@ public class NameStyleMapping : Mapping
 
 	public override TableInfo? MapTable(TableInfo sourceTable)
 	{
-		var schema = style.Convert(sourceTable.TableSchema);
-		var name = style.Convert(sourceTable.TableName);
+		var schema = ProcessName(sourceTable.TableSchema);
+		var name = ProcessName(sourceTable.TableName);
 		return new TableInfo(schema, name);
 	}
 
 	public override ColumnInfo? MapColumn(TableInfo sourceTable, ColumnInfo sourceColumn)
 	{
-		var name = style.Convert(sourceColumn.ColumnName);
-		return new ColumnInfo(name, sourceColumn.DataTypeName, sourceColumn.DbType, sourceColumn.AllowDBNull ?? true, sourceColumn.ColumnSize);
+		var name = ProcessName(sourceColumn.ColumnName);
+		return new ColumnInfo(
+			name, 
+			sourceColumn.DataTypeName, 
+			sourceColumn.DbType, 
+			sourceColumn.AllowDBNull ?? true, 
+			sourceColumn.ColumnSize, 
+			sourceColumn.NumericPrecision, 
+			sourceColumn.NumericScale
+		);
+	}
+
+	string ProcessName(string name)
+	{
+		if (name.Contains('-'))
+		{
+			return name.ToLower();
+		}
+		return style.Convert(name);
 	}
 }

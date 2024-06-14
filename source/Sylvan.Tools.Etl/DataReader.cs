@@ -72,9 +72,8 @@ static class DataReader
 			{
 				Schema = csvSchema,
 				BufferSize = 0x20000,
-				OwnsReader = true,
-				CsvStyle = CsvStyle.Escaped,
-				Escape = '\0',
+				MaxBufferSize = Array.MaxLength,
+				OwnsReader = true,				
 			};
 
 		return CsvDataReader.Create(tr, opts);

@@ -2,11 +2,11 @@
 
 namespace TestConsole;
 
-class ConsoleLogger : ILogger
+sealed class ConsoleLogger : ILogger
 {
-	public IDisposable BeginScope<TState>(TState state)
+	public IDisposable? BeginScope<TState>(TState state) where TState : notnull
 	{
-		return null!;
+		return null;
 	}
 
 	public bool IsEnabled(LogLevel logLevel)
@@ -17,25 +17,53 @@ class ConsoleLogger : ILogger
 	public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 	{
 		var str = formatter(state, exception);
-		Console.ForegroundColor = GetColor(logLevel);
+		SetColor(logLevel);
+		Console.Write(DateTime.Now.ToString("HH:mm:ss"));
+		Console.Write(" ");
+		Console.Write(ShortCode(logLevel));
+		Console.Write(" ");
 		Console.WriteLine(str);
 	}
 
-	static ConsoleColor GetColor(LogLevel level)
+	static char ShortCode(LogLevel l)
 	{
+		return Code(l)[0];
+	}
+
+	static string Code(LogLevel l)
+	{
+		return l switch
+		{
+			LogLevel.Debug => "DBG",
+			LogLevel.Information => "INF",
+			LogLevel.Warning => "WRN",
+			LogLevel.Error => "ERR",
+			LogLevel.Critical => "CRT",
+			_ => "???"
+		};
+	}
+
+	static void SetColor(LogLevel level)
+	{
+		Console.ResetColor();
 		switch (level)
 		{
 			case LogLevel.Critical:
-				return ConsoleColor.Magenta;
+				Console.ForegroundColor = ConsoleColor.White;
+				Console.BackgroundColor = ConsoleColor.DarkRed;
+				break;
 			case LogLevel.Error:
-				return ConsoleColor.Red;
+				Console.ForegroundColor = ConsoleColor.Red;
+				break;
 			case LogLevel.Warning:
-				return ConsoleColor.Yellow;
+				Console.ForegroundColor = ConsoleColor.Yellow;
+				break;
 			case LogLevel.Information:
-				return ConsoleColor.White;
+				Console.ForegroundColor = ConsoleColor.White;
+				break;
 			case LogLevel.Debug:
-				return ConsoleColor.Gray;
+				Console.ForegroundColor = ConsoleColor.DarkGray;
+				break;
 		}
-		return ConsoleColor.White;
 	}
 }

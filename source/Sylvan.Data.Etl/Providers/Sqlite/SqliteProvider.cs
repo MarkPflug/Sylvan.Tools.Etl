@@ -1,5 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using System.Data;
+﻿using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
 
@@ -20,8 +19,9 @@ public class SqliteProvider : DbProvider
 			yield return "pg_toast";
 		}
 	}
-
-	string BuildTable(string name, IEnumerable<DbColumn> cols)
+	 
+	
+	protected override string BuildTable(string name, IEnumerable<DbColumn> cols)
 	{
 		var w = new StringWriter();
 
@@ -145,8 +145,8 @@ public class SqliteProvider : DbProvider
 		//return count;
 	}
 
-	public override DbType GetType(string typeName)
+	public override DbType? GetType(string typeName)
 	{
-		throw new NotImplementedException();
+		return null;
 	}
 }

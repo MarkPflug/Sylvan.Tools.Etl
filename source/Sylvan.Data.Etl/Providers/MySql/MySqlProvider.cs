@@ -159,7 +159,12 @@ public class MySqlProvider : DbProvider
 		return count;
 	}
 
-	public override DbType GetType(string typeName)
+	public override DbType? GetType(string typeName)
+	{
+		return null;
+	}
+
+	protected override string BuildTable(string name, IEnumerable<DbColumn> cols)
 	{
 		throw new NotImplementedException();
 	}

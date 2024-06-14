@@ -29,7 +29,7 @@ sealed class HybridTimeColumn : ProgressColumn
 	public Style FinishedStyle { get; set; } = new Style(foreground: Color.Green);
 
 
-	public override IRenderable Render(RenderContext context, ProgressTask task, TimeSpan deltaTime)
+	public override IRenderable Render(RenderOptions context, ProgressTask task, TimeSpan deltaTime)
 	{
 		if (task.IsFinished)
 		{
@@ -60,8 +60,7 @@ sealed class HybridTimeColumn : ProgressColumn
 		}
 	}
 
-	/// <inheritdoc/>
-	public override int? GetColumnWidth(RenderContext context)
+	public override int? GetColumnWidth(RenderOptions options)
 	{
 		return 8;
 	}

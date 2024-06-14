@@ -13,6 +13,9 @@
 	datetime_precision,
 	character_set_name
 from information_schema.columns
+where 
+	table_schema = '{0}' 
+	and table_name = '{1}'
 order by 
 	table_schema, 
 	table_name, 

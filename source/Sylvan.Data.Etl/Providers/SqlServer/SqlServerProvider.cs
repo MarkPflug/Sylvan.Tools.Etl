@@ -1,6 +1,6 @@
-﻿using System.Data;
+﻿using Microsoft.Data.SqlClient;
+using System.Data;
 using System.Data.Common;
-using System.Data.SqlClient;
 
 namespace Sylvan.Data.Etl.Providers.SqlServer;
 
@@ -14,9 +14,8 @@ public enum MergeAction
 	All = Insert | Update | Delete
 }
 
-public class SqlServerProvider : DbProvider
+public sealed class SqlServerProvider : DbProvider
 {
-
 	static readonly Dictionary<string, DbType> TypeMap;
 
 	static SqlServerProvider()
@@ -34,6 +33,7 @@ public class SqlServerProvider : DbProvider
 				{"datetime2", DbType.DateTime2 },
 				{"datetimeoffset", DbType.DateTimeOffset },
 				{"varchar", DbType.AnsiString },
+				{"nvarchar", DbType.String },
 				{"char", DbType.AnsiStringFixedLength },
 				{"real", DbType.Single },
 				{"float", DbType.Double },
@@ -48,7 +48,7 @@ public class SqlServerProvider : DbProvider
 
 	string connectionString;
 
-	string BuildTable(string name, IEnumerable<DbColumn> cols)
+	protected override string BuildTable(string name, IEnumerable<DbColumn> cols)
 	{
 		var w = new StringWriter();
 
@@ -122,7 +122,21 @@ public class SqlServerProvider : DbProvider
 
 	public SqlServerProvider(string connectionString)
 	{
-		this.connectionString = connectionString;
+		if (connectionString.Contains("="))
+		{
+			this.connectionString = connectionString;
+		} else
+		{
+			var csb = new SqlConnectionStringBuilder()
+			{
+				InitialCatalog = connectionString,
+				DataSource = ".",
+				IntegratedSecurity = true,
+				TrustServerCertificate = true,
+			};
+
+			this.connectionString = csb.ConnectionString;
+		}
 	}
 
 	public override DbConnection GetConnection()
@@ -140,21 +154,11 @@ public class SqlServerProvider : DbProvider
 	public override long LoadData(TableMapping table, DbDataReader data)
 	{
 		using var sqlConn = (SqlConnection)GetConnection();
-		//var tbl = BuildTable(table, data.GetColumnSchema());
-		//var cmd = sqlConn.CreateCommand();
-		//cmd.CommandText = tbl;
-		try
-		{
-			//	cmd.ExecuteNonQuery();
-		}
-		catch (Exception e)
-		{
-			throw new InvalidOperationException($"Failed to create table {table}.", e);
-		}
-
-		using var bc = new SqlBulkCopy(sqlConn);
+		
+		using var bc = new SqlBulkCopy(sqlConn, SqlBulkCopyOptions.TableLock, null);
 		bc.BulkCopyTimeout = 0;
 		bc.EnableStreaming = true;
+		bc.BatchSize = 0x1000;		
 
 		var t = table.TargetTable!;
 		bc.DestinationTableName = t.TableSchema + "." + t.TableName;
@@ -162,13 +166,16 @@ public class SqlServerProvider : DbProvider
 		return -1;
 	}
 
-	public override DbType GetType(string typeName)
+	public override DbType? GetType(string typeName)
 	{
-		return TypeMap.TryGetValue(typeName, out var type) ? type : DbType.Object;
+		return TypeMap.TryGetValue(typeName, out var type) ? type : null;
 	}
 
 	public string BuildMergeCommand(string src, string dest, MergeAction action = MergeAction.Insert | MergeAction.Update)
 	{
+		if (action == MergeAction.None)
+			throw new ArgumentOutOfRangeException("action");
+
 		var conn = GetSqlConnection();
 
 		using var cmd = conn.CreateCommand();

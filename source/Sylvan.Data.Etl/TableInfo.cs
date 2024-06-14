@@ -26,7 +26,7 @@ public class TableInfo
 
 public class ColumnInfo : DbColumn
 {
-	public ColumnInfo(string name, string typeName, DbType type, bool allowNull, int? textLength)
+	public ColumnInfo(string name, string typeName, DbType type, bool allowNull = true, int? textLength = null, int? prec = null, int? scale = null)
 	{
 		this.ColumnName = name;
 		this.DataTypeName = typeName;
@@ -34,6 +34,8 @@ public class ColumnInfo : DbColumn
 		this.DataType = GetDataType(type);
 		this.AllowDBNull = allowNull;
 		this.ColumnSize = textLength;
+		this.NumericPrecision = prec;
+		this.NumericScale = scale;
 	}
 
 	Type GetDataType(DbType type)
@@ -106,7 +108,7 @@ public class DatabaseMapping
 	}
 }
 
-public class TableMapping
+public sealed class TableMapping
 {
 	public TableMapping(TableInfo source, TableInfo? target)
 	{
@@ -120,6 +122,11 @@ public class TableMapping
 	public TableInfo? TargetTable { get; set; }
 
 	public List<ColumnMapping> ColumnMappings { get; set; }
+
+	public override string ToString()
+	{
+		return $"{SourceTable.TableSchema}.{SourceTable.TableName}";
+	}
 }
 
 public class ColumnMapping

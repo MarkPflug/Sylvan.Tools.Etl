@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Sylvan.CodeGeneration;
 using System.Data.Common;
 using System.Diagnostics;
 
@@ -10,7 +11,7 @@ sealed class NullLogger : ILogger
 
 	private NullLogger() { }
 
-	public IDisposable BeginScope<TState>(TState state)
+	public IDisposable? BeginScope<TState>(TState state) where TState : notnull
 	{
 		return null!;
 	}
@@ -32,21 +33,21 @@ public class MigrateProcess
 	readonly IMapping mapping;
 	readonly ILogger log;
 
-	public MigrateProcess(DbProvider source, DbProvider target, ILogger log)
+	public MigrateProcess(DbProvider source, DbProvider target, ILogger? log = null)
 	{
 		this.source = source;
 		this.target = target;
-		this.log = log;
-		this.mapping = new NameStyleMapping(new UnderscoreStyle(CasingStyle.LowerCase));
+		this.log = log ?? NullLogger.Instance;
+		this.mapping = new NameStyleMapping(CodeGeneration.IdentifierStyle.Database);
 	}
 
 	void TerminalError(string msg, Exception ex)
 	{
 		Console.Error.WriteLine(msg);
-		Environment.Exit(ex.HResult);
+		Environment.Exit(ex.HResult == 0 ? -1 : ex.HResult);
 	}
 
-	TableMapping MapTable(TableInfo table, IMapping mapping)
+	public static TableMapping MapTable(TableInfo table, IMapping mapping)
 	{
 		var targetTable = mapping.MapTable(table);
 
@@ -56,8 +57,8 @@ public class MigrateProcess
 			foreach (var col in table.Columns)
 			{
 				var targetCol = mapping.MapColumn(table, col);
-				if (targetCol != null)
-					targetTable.Columns.Add(targetCol);
+				//if (targetCol != null)
+				//	targetTable.Columns.Add(targetCol);
 
 				tableMapping.ColumnMappings.Add(new ColumnMapping(col, targetCol));
 			}
@@ -68,12 +69,12 @@ public class MigrateProcess
 
 	public void Execute()
 	{
-		var style = new UnderscoreStyle(CasingStyle.LowerCase);
+		var style = IdentifierStyle.Database;
 
 		using var sConn = source.GetConnection();
 		using var tConn = target.GetConnection();
 
-		var tables = source.GetTableInfo();
+		var tables = source.GetTableInfos();
 
 		var tableMappings = tables.Select(t => MapTable(t, this.mapping)).ToList();
 		var dbMapping = new DatabaseMapping(tableMappings);
@@ -82,17 +83,16 @@ public class MigrateProcess
 		foreach (var mapping in tableMappings)
 		{
 			Console.Write($"{mapping.SourceTable.TableName,-75}");
-			if(mapping.TargetTable == null)
+			if (mapping.TargetTable == null)
 			{
 				Console.WriteLine($" skipped.");
 				continue;
 			}
 
-
 			var sw = Stopwatch.StartNew();
 			using var cmd = sConn.CreateCommand();
-		
-			var str = BuildTable(mapping.TargetTable);
+
+			BuildTable(mapping.TargetTable);
 
 			long count = -1;
 
@@ -211,6 +211,10 @@ public class MigrateProcess
 					break;
 				case TypeCode.Decimal:
 					w.Write("numeric");
+					if(col.NumericPrecision != null)
+					{
+						w.Write($"({col.NumericPrecision},{col.NumericScale})");
+					}
 					break;
 				default:
 					if (dataType == typeof(byte[]))
@@ -303,7 +307,7 @@ public class MigrateProcess
 			writer.WriteLine(");");
 		}
 	}
-
+	
 	void GenerateFKs(DatabaseMapping mapping, TextWriter w)
 	{
 		var conn = this.source.GetConnection();
@@ -368,14 +372,16 @@ public class MigrateProcess
 			var tt = ttm!.TargetTable!;
 
 			w.Write("alter table ");
-			
-			w.Write(st.TableSchema);
-			w.Write(".");
-			w.Write(st.TableName);
 
-			w.Write(" add constraint ");
-			w.Write(ReferenceName.Name);
-			w.Write(" foreign key (");
+			w.Write(st.TableSchema);
+			w.Write(".\"");
+			w.Write(st.TableName);
+			w.Write("\"");
+			w.Write(" add constraint \"");
+			var name = ReferenceName.Name;
+			name = name.Length > 60 ? "FK_" + Guid.NewGuid().ToString("n") : name;
+			w.Write(name);
+			w.Write("\" foreign key (");
 			var c = StringComparer.OrdinalIgnoreCase;
 			for (int i = 0; i < cols.Count; i++)
 			{
@@ -383,15 +389,17 @@ public class MigrateProcess
 					w.Write(", ");
 				var sn = cols[i].Key;
 				var ff = stm.ColumnMappings.FirstOrDefault(m => c.Equals(m.SourceColumn.ColumnName, sn));
+				w.Write('\"');
 				w.Write(ff.TargetColumn!.ColumnName);
+				w.Write('\"');
 			}
 			w.Write(") references ");
 
 			w.Write(tt.TableSchema);
-			w.Write(".");
+			w.Write(".\"");
 			w.Write(tt.TableName);
 
-			w.Write(" (");
+			w.Write("\" (");
 			for (int i = 0; i < cols.Count; i++)
 			{
 				if (i != 0)
@@ -399,7 +407,9 @@ public class MigrateProcess
 
 				var tn = cols[i].Value;
 				var ff = ttm.ColumnMappings.FirstOrDefault(m => c.Equals(m.SourceColumn.ColumnName, tn));
+				w.Write('\"');
 				w.Write(ff.TargetColumn!.ColumnName);
+				w.Write('\"');
 			}
 			w.WriteLine(");");
 		}

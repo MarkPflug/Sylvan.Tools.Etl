@@ -21,10 +21,20 @@ public class NpgsqlProvider : DbProvider
 		return conn;
 	}
 
+	public override IEnumerable<DbColumn> GetSchema(string tableName)
+	{
+		using var conn = GetConnection();
+		using var cmd = conn.CreateCommand();
+		cmd.CommandText = $"select * from \"{tableName}\" limit 0;";
+		cmd.CommandType = CommandType.Text;
+		using var reader = cmd.ExecuteReader();
+		return reader.GetColumnSchema();
+	}
+
 	string BuildTable(TableInfo table)
 	{
 		var w = new StringWriter();
-		w.WriteLine($"create table {table.TableSchema}.{table.TableName} (");
+		w.WriteLine($"create table \"{table.TableSchema}\".\"{table.TableName}\" (");
 
 		var first = true;
 		foreach (var col in table.Columns)
@@ -39,7 +49,9 @@ public class NpgsqlProvider : DbProvider
 			}
 
 			var colName = col.ColumnName;
+			w.Write('\"');
 			w.Write(colName);
+			w.Write('\"');
 			w.Write(' ');
 			var type = col.DataType;
 			switch (Type.GetTypeCode(type))
@@ -76,6 +88,10 @@ public class NpgsqlProvider : DbProvider
 					break;
 				case TypeCode.Decimal:
 					w.Write("numeric");
+					if(col.NumericPrecision != null)
+					{
+						w.Write($"({col.NumericPrecision}, {col.NumericScale})");
+					}
 					break;
 				default:
 					if (type == typeof(byte[]))
@@ -128,16 +144,16 @@ public class NpgsqlProvider : DbProvider
 		cmd.CommandText = $"create schema if not exists {mapping.TargetTable!.TableSchema}";
 		cmd.ExecuteNonQuery();
 
-		var createTableCmd = BuildTable(mapping.TargetTable!);
-		cmd.CommandText = createTableCmd;
-		try
-		{
-			cmd.ExecuteNonQuery();
-		}
-		catch (Exception e)
-		{
-			throw new InvalidOperationException($"Failed to create table {mapping.TargetTable}.", e);
-		}
+		//var createTableCmd = BuildTable(mapping.TargetTable!);
+		//cmd.CommandText = createTableCmd;
+		//try
+		//{
+		//	cmd.ExecuteNonQuery();
+		//}
+		//catch (Exception e)
+		//{
+		//	throw new InvalidOperationException($"Failed to create table {mapping.TargetTable}.", e);
+		//}
 		return WriteData(conn, mapping.TargetTable!, data);
 	}
 
@@ -146,14 +162,16 @@ public class NpgsqlProvider : DbProvider
 		var schema = table.Columns;
 
 		var sw = new StringWriter();
-		sw.WriteLine($"copy {table.TableSchema}.{table.TableName} (");
+		sw.WriteLine($"copy {table.TableSchema}.\"{table.TableName}\" (");
 		for (int i = 0; i < schema.Count; i++)
 		{
 			if (i > 0)
 				sw.Write(", ");
 
 			var colSchema = schema[i];
+			sw.Write('\"');
 			sw.Write(colSchema.ColumnName);
+			sw.Write('\"');
 		}
 
 		sw.Write(")");
@@ -187,7 +205,7 @@ public class NpgsqlProvider : DbProvider
 						break;
 					case NpgsqlDbType.Smallint:
 						// TODO: need to figure out "tinyint" scenario. npg doesn't support it.
-						bi.Write(data.GetByte(i), dbType);
+						bi.Write(data.GetInt16(i), dbType);
 						break;
 					case NpgsqlDbType.Integer:
 						bi.Write(data.GetInt32(i), dbType);
@@ -200,6 +218,9 @@ public class NpgsqlProvider : DbProvider
 						break;
 					case NpgsqlDbType.Double:
 						bi.Write(data.GetDouble(i), dbType);
+						break;
+					case NpgsqlDbType.Real:
+						bi.Write(data.GetFloat(i), dbType);
 						break;
 					case NpgsqlDbType.Money:
 					case NpgsqlDbType.Numeric:
@@ -233,11 +254,17 @@ public class NpgsqlProvider : DbProvider
 		if (type == typeof(int))
 			return NpgsqlDbType.Integer;
 
+		if (type == typeof(short))
+			return NpgsqlDbType.Smallint;
+
 		if (type == typeof(long))
 			return NpgsqlDbType.Bigint;
 
 		if (type == typeof(bool))
 			return NpgsqlDbType.Boolean;
+
+		if (type == typeof(float))
+			return NpgsqlDbType.Real;
 
 		if (type == typeof(double))
 			return NpgsqlDbType.Double;
@@ -257,7 +284,12 @@ public class NpgsqlProvider : DbProvider
 		throw new NotSupportedException();
 	}
 
-	public override DbType GetType(string typeName)
+	public override DbType? GetType(string typeName)
+	{
+		return null;
+	}
+
+	protected override string BuildTable(string name, IEnumerable<DbColumn> cols)
 	{
 		throw new NotImplementedException();
 	}
