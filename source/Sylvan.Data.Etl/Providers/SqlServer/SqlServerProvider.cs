@@ -18,6 +18,10 @@ public sealed class SqlServerProvider : DbProvider
 {
 	static readonly Dictionary<string, DbType> TypeMap;
 
+	public const string DefaultSchemaName = "dbo";
+
+	public override string DefaultSchema => DefaultSchemaName;
+
 	static SqlServerProvider()
 	{
 		TypeMap = new Dictionary<string, DbType>(StringComparer.OrdinalIgnoreCase)
@@ -125,7 +129,8 @@ public sealed class SqlServerProvider : DbProvider
 		if (connectionString.Contains("="))
 		{
 			this.connectionString = connectionString;
-		} else
+		}
+		else
 		{
 			var csb = new SqlConnectionStringBuilder()
 			{
@@ -154,11 +159,11 @@ public sealed class SqlServerProvider : DbProvider
 	public override long LoadData(TableMapping table, DbDataReader data)
 	{
 		using var sqlConn = (SqlConnection)GetConnection();
-		
+
 		using var bc = new SqlBulkCopy(sqlConn, SqlBulkCopyOptions.TableLock, null);
 		bc.BulkCopyTimeout = 0;
 		bc.EnableStreaming = true;
-		bc.BatchSize = 0x1000;		
+		bc.BatchSize = 0x1000;
 
 		var t = table.TargetTable!;
 		bc.DestinationTableName = t.TableSchema + "." + t.TableName;

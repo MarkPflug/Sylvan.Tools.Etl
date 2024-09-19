@@ -84,19 +84,18 @@ sealed class ImportCommand : Command<ImportSettings>
 				var colSchema = reader.GetColumnSchema();
 				var ti = provider.GetOrCreateTable(tableName, colSchema);
 
-				var mapping = MigrateProcess.MapTable(ti, Mapping.Identity);
+				throw new NotImplementedException();
+				//var mapping = MapTable(ti, Mapping.Identity);
 
-				var v = new Validator();				
+				//var v = new Validator();				
 
-#pragma warning disable CS0618 // Type or member is obsolete
-				reader = reader.ValidateSchema(v.Validate);
-#pragma warning restore CS0618 // Type or member is obsolete
-				provider.LoadData(mapping, reader);
+				//reader = reader.ValidateSchema(v.Validate);
+				//provider.LoadData(mapping, reader);
 
-				using var ow = Console.OpenStandardOutput();
-				using var bw = new BufferedStream(ow, 0x1000);
-				using var tw = new StreamWriter(bw);
-				v.WriteErrors(reader, tw);
+				//using var ow = Console.OpenStandardOutput();
+				//using var bw = new BufferedStream(ow, 0x1000);
+				//using var tw = new StreamWriter(bw);
+				//v.WriteErrors(reader, tw);
 			});
 		}
 

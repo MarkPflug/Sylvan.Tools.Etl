@@ -38,7 +38,7 @@ public class MigrateProcess
 		this.source = source;
 		this.target = target;
 		this.log = log ?? NullLogger.Instance;
-		this.mapping = new NameStyleMapping(CodeGeneration.IdentifierStyle.Database);
+		this.mapping = new NameStyleMapping(IdentifierStyle.Database);
 	}
 
 	void TerminalError(string msg, Exception ex)
@@ -47,9 +47,13 @@ public class MigrateProcess
 		Environment.Exit(ex.HResult == 0 ? -1 : ex.HResult);
 	}
 
-	public static TableMapping MapTable(TableInfo table, IMapping mapping)
+	public TableMapping MapTable(TableInfo table, IMapping mapping)
 	{
 		var targetTable = mapping.MapTable(table);
+		if (table.TableSchema == source.DefaultSchema)
+		{
+			targetTable = new TableInfo(target.DefaultSchema!, targetTable!.TableName);
+		}
 
 		var tableMapping = new TableMapping(table, targetTable);
 		if (targetTable != null)
@@ -59,6 +63,7 @@ public class MigrateProcess
 				var targetCol = mapping.MapColumn(table, col);
 				//if (targetCol != null)
 				//	targetTable.Columns.Add(targetCol);
+				targetTable.Columns.Add(targetCol!);
 
 				tableMapping.ColumnMappings.Add(new ColumnMapping(col, targetCol));
 			}
@@ -89,17 +94,23 @@ public class MigrateProcess
 				continue;
 			}
 
-			var sw = Stopwatch.StartNew();
-			using var cmd = sConn.CreateCommand();
+			{
+				// create target
+				var target = mapping.TargetTable;
+				using var cmd = tConn.CreateCommand();
+				
+				cmd.CommandText = BuildTable(target);
+				cmd.ExecuteNonQuery();
+			}
 
-			BuildTable(mapping.TargetTable);
+			var sw = Stopwatch.StartNew();
 
 			long count = -1;
 
 			{ // load data
-				var sel = GenerateSelect(mapping);
+				using var cmd = sConn.CreateCommand();
 				cmd.CommandTimeout = 0;
-				cmd.CommandText = sel;
+				cmd.CommandText = GenerateSelect(mapping); ;
 				using var reader = cmd.ExecuteReader();
 				count = target.LoadData(mapping, reader);
 			}
@@ -162,7 +173,7 @@ public class MigrateProcess
 	static string BuildTable(TableInfo table)
 	{
 		var w = new StringWriter();
-
+		w.WriteLine($"create schema if not exists \"{table.TableSchema}\";");
 		w.WriteLine($"create table \"{table.TableSchema}\".\"" + table.TableName + "\" (");
 
 		var first = true;
@@ -211,7 +222,7 @@ public class MigrateProcess
 					break;
 				case TypeCode.Decimal:
 					w.Write("numeric");
-					if(col.NumericPrecision != null)
+					if (col.NumericPrecision != null)
 					{
 						w.Write($"({col.NumericPrecision},{col.NumericScale})");
 					}
@@ -307,7 +318,7 @@ public class MigrateProcess
 			writer.WriteLine(");");
 		}
 	}
-	
+
 	void GenerateFKs(DatabaseMapping mapping, TextWriter w)
 	{
 		var conn = this.source.GetConnection();

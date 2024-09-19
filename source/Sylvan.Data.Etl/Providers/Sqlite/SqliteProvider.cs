@@ -6,6 +6,8 @@ namespace Sylvan.Data.Etl;
 
 public class SqliteProvider : DbProvider
 {
+	public override string? DefaultSchema => null;
+
 	string connectionString;
 
 	public override IEnumerable<string> IgnoreSchemas

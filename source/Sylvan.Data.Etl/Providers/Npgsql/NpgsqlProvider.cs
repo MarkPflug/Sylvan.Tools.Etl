@@ -7,6 +7,10 @@ namespace Sylvan.Data.Etl.Providers.Npgsql;
 
 public class NpgsqlProvider : DbProvider
 {
+	public const string DefaultSchemaName = "public";
+
+	public override string DefaultSchema => DefaultSchemaName; 
+
 	readonly string connectionString;
 
 	public NpgsqlProvider(string connectionString)
@@ -141,19 +145,6 @@ public class NpgsqlProvider : DbProvider
 		var schema = data.GetColumnSchema();
 		var cmd = conn.CreateCommand();
 
-		cmd.CommandText = $"create schema if not exists {mapping.TargetTable!.TableSchema}";
-		cmd.ExecuteNonQuery();
-
-		//var createTableCmd = BuildTable(mapping.TargetTable!);
-		//cmd.CommandText = createTableCmd;
-		//try
-		//{
-		//	cmd.ExecuteNonQuery();
-		//}
-		//catch (Exception e)
-		//{
-		//	throw new InvalidOperationException($"Failed to create table {mapping.TargetTable}.", e);
-		//}
 		return WriteData(conn, mapping.TargetTable!, data);
 	}
 

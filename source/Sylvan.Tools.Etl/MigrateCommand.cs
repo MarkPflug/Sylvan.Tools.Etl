@@ -5,45 +5,22 @@ using Sylvan.Data.Etl.Providers.Npgsql;
 using Sylvan.Data.Etl.Providers.SqlServer;
 using System;
 
-namespace Sylvan.Tools.DbMigrate;
+namespace Sylvan.Tools.Etl;
 
 static class MigrateCommand
 {
 	internal static void Run()
 	{
-		//string sqlHost = args[0];
-		//string dbName = args[1];
-		//string pgHost = args[2];
-		//if (pgHost == ".") pgHost = "localhost";
-		var pgHost = "localhost";
+		var sqlConn = Environment.GetEnvironmentVariable("MSSqlConnStr");
+		var pgConn = Environment.GetEnvironmentVariable("PostgreSqlConnStr");
 
-		var pgUsername = Environment.GetEnvironmentVariable("postgres_username");
-		var pgPassword = Environment.GetEnvironmentVariable("postgres_password");
+		var csb = new SqlConnectionStringBuilder(sqlConn);
+		var pgcb = new NpgsqlConnectionStringBuilder(pgConn);
 
-		var pgcb = new NpgsqlConnectionStringBuilder { Host = pgHost };
-
-		if (string.IsNullOrEmpty(pgUsername))
-		{
-			//pgcb.IntegratedSecurity = true;
-		}
-		else
-		{
-			pgcb.Username = pgUsername;
-			pgcb.Password = pgPassword;
-		}
-
-		var csb = new SqlConnectionStringBuilder()
-		{
-			DataSource = ".",
-			InitialCatalog = "chs",
-			TrustServerCertificate = true,
-			IntegratedSecurity = true,
-		};
-
-		pgcb.Database = "chs";
+		csb.InitialCatalog = "coi"; 
+		pgcb.Database = csb.InitialCatalog;
 
 		var srcDb = new SqlServerProvider(csb.ConnectionString);
-
 		var dstDb = new NpgsqlProvider(pgcb.ConnectionString);
 
 		var proc = new MigrateProcess(srcDb, dstDb);

@@ -32,22 +32,24 @@ class Program
 
 	static int Main(string[] args)
 	{
-		var app = new CommandApp();
-		app.Configure(config =>
-		{
-			config.AddCommand<ImportCommand>("import");
-			config.AddCommand<ExportCommand>("export");
-			config.AddCommand<AnalyzeCommand>("analyze");
-			config.AddCommand<SelectCommand>("select");
-			config.Settings.PropagateExceptions = true;
-		});
-		var result = app.Run(args);
-		return result;
+		Experiment();
+		return 0;
+		//var app = new CommandApp();
+		//app.Configure(config =>
+		//{
+		//	config.AddCommand<ImportCommand>("import");
+		//	config.AddCommand<ExportCommand>("export");
+		//	config.AddCommand<AnalyzeCommand>("analyze");
+		//	config.AddCommand<SelectCommand>("select");
+		//	config.Settings.PropagateExceptions = true;
+		//});
+		//var result = app.Run(args);
+		//return result;
 	}
 
 	static void Experiment()
 	{
-		//MigrateCommand.Run();
+		MigrateCommand.Run();
 		//var c = GetConnection("Test");
 
 		//var w = c.BeginTextImport("copy \"1000000_sales_records\" (\"region\", \"country\", \"item_type\", \"sales_channel\", \"order_priority\", \"order_date\", \"order_id\", \"ship_date\", \"units_sold\", \"unit_price\", \"unit_cost\", \"total_revenue\", \"total_cost\", \"total_profit\") from stdin (format csv)");

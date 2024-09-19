@@ -14,9 +14,11 @@ public abstract class DbProvider
 		}
 	}
 
-	public static readonly IdentifierStyle DefaultStyle = IdentifierStyle.Database;
+	public static readonly IdentifierStyle DefaultStyle =  IdentifierStyle.Database;
 
 	public virtual IdentifierStyle NameStyle => DefaultStyle;
+
+	public abstract string? DefaultSchema { get; }
 
 	public abstract DbType? GetType(string typeName);
 

@@ -9,13 +9,13 @@
     <Year>$([System.DateTime]::UtcNow.Year)</Year>
     <Copyright>© $(Year) $(Owner)</Copyright>
     <PackageLicenseFile>license.txt</PackageLicenseFile>
-    <LangVersion>10.0</LangVersion>
+    <LangVersion>13.0</LangVersion>
 
     <RepositoryUrl>https://github.com/MarkPflug/Sylvan.Tools.Etl</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsNotAsErrors>CS1030;CA1835;$(WarningsNotAsErrors);NU1902;NU1903</WarningsNotAsErrors>
+    <WarningsNotAsErrors>CS0618;CS1030;CA1835;$(WarningsNotAsErrors);NU1902;NU1903</WarningsNotAsErrors>
   
   
     <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests')) == 'true'">true</IsTestProject>

@@ -81,9 +81,10 @@ static class Program
 		ti.Columns.Add(new Sylvan.Data.Etl.ColumnInfo("firstname", "varchar", DbType.AnsiString, false));
 		ti.Columns.Add(new Sylvan.Data.Etl.ColumnInfo("lastname", "varchar", DbType.AnsiString, false));
 		ti.Columns.Add(new Sylvan.Data.Etl.ColumnInfo("age", "int", DbType.Int32, false));
-		var mapping = MigrateProcess.MapTable(ti, Mapping.Identity);
+		throw new NotImplementedException();
+		//var mapping = MigrateProcess.MapTable(ti, Mapping.Identity);
 
-		p.LoadData(mapping, reader);
+		//p.LoadData(mapping, reader);
 	}
 
 	static void LogTest()

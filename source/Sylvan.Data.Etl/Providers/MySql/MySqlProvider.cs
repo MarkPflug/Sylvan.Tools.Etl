@@ -9,6 +9,9 @@ public class MySqlProvider : DbProvider
 {
 	string connectionString;
 
+	// TODO: I don't know MySql, so need to figure this out.
+	public override string? DefaultSchema => throw new NotImplementedException();
+
 	void BuildTable(TableInfo table, TextWriter w)
 	{
 		w.WriteLine($"create table {table.TableSchema}.{table.TableName} (");
