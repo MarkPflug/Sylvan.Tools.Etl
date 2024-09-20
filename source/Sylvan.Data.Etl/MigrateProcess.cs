@@ -390,6 +390,10 @@ public class MigrateProcess
 			w.Write("\"");
 			w.Write(" add constraint \"");
 			var name = ReferenceName.Name;
+			
+			// TODO: (60) postgresql has an identifier limit of 63.
+			// This value should be pulled from the provider.MaxIdentifierLength,
+			// which is currently not accessible here.
 			name = name.Length > 60 ? "FK_" + Guid.NewGuid().ToString("n") : name;
 			w.Write(name);
 			w.Write("\" foreign key (");

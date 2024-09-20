@@ -21,8 +21,11 @@ public class SqliteProvider : DbProvider
 			yield return "pg_toast";
 		}
 	}
-	 
-	
+
+	// TODO: I don't see any documented limit on this, but I assume there is one.
+	// Need to determine empirically.
+	public override int MaxIdentifierLength => short.MaxValue;
+
 	protected override string BuildTable(string name, IEnumerable<DbColumn> cols)
 	{
 		var w = new StringWriter();

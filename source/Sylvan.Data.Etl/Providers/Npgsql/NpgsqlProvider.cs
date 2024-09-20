@@ -18,6 +18,8 @@ public class NpgsqlProvider : DbProvider
 		this.connectionString = connectionString;
 	}
 
+	public override int MaxIdentifierLength => 63;
+
 	public override DbConnection GetConnection()
 	{
 		var conn = new NpgsqlConnection(connectionString);

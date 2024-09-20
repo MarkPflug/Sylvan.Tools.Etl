@@ -10,7 +10,10 @@ public class MySqlProvider : DbProvider
 	string connectionString;
 
 	// TODO: I don't know MySql, so need to figure this out.
+	// My limited recollection is that schemas are handled differently than most RDBMs.
 	public override string? DefaultSchema => throw new NotImplementedException();
+
+	public override int MaxIdentifierLength => 64;
 
 	void BuildTable(TableInfo table, TextWriter w)
 	{

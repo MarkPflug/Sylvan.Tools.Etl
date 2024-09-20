@@ -14,6 +14,8 @@ public abstract class DbProvider
 		}
 	}
 
+	public abstract int MaxIdentifierLength { get; }
+
 	public static readonly IdentifierStyle DefaultStyle =  IdentifierStyle.Database;
 
 	public virtual IdentifierStyle NameStyle => DefaultStyle;

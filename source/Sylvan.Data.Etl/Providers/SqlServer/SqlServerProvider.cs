@@ -22,6 +22,8 @@ public sealed class SqlServerProvider : DbProvider
 
 	public override string DefaultSchema => DefaultSchemaName;
 
+	public override int MaxIdentifierLength => 128;
+
 	static SqlServerProvider()
 	{
 		TypeMap = new Dictionary<string, DbType>(StringComparer.OrdinalIgnoreCase)
