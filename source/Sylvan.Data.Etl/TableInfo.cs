@@ -63,6 +63,8 @@ public class ColumnInfo : DbColumn
 			case DbType.DateTime:
 			case DbType.DateTime2:
 				return typeof(DateTime);
+			case DbType.DateTimeOffset:
+				return typeof(DateTimeOffset);
 			case DbType.Double:
 				return typeof(double);
 			case DbType.Single:

@@ -197,8 +197,15 @@ public class NpgsqlProvider : DbProvider
 						bi.Write(str, dbType);
 						break;
 					case NpgsqlDbType.Smallint:
-						// TODO: need to figure out "tinyint" scenario. npg doesn't support it.
-						bi.Write(data.GetInt16(i), dbType);
+						// postgres doesn't support byte type
+						{
+							var ft = data.GetFieldType(i);
+							short value =
+								ft == typeof(byte)
+								? data.GetByte(i)
+								: data.GetInt16(i);
+							bi.Write(value, dbType);
+						}
 						break;
 					case NpgsqlDbType.Integer:
 						bi.Write(data.GetInt32(i), dbType);
